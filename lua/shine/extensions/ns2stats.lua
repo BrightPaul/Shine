@@ -36,46 +36,47 @@ function Plugin:Initialise()
     // add all Data Function to Hooks Shine.Hook.Add( string HookName, string UniqueID, function HookFunction [, int Priority ] )
     Shine.Hook.Add( "BuildingDropped", "AddBuildingdropped", function(newEnt, commander) /*add function stuff here*/ end )
     Shine.Hook.Add( "DealedDamage", "AddDamagetoS", function(target,attacker,damage)
-    if attacker:isa("Player") then
-        if damage > 0  then 
-        local hit = {} 
-        local atloc = attacker:GetOrigin()
-        hit.attacker_steamId = attacker:GetUserId()
-        hit.attacker_team = attacker:GetTeamNumber()
-        hit.attacker_weapon = attacker:GetActiveWeaponName()
-        hit.attacker_hp = attacker:GetHealth()
-        hit.attacker_amor = attacker:GetArmor()
-        hit.attackerx = atloc.x
-        hit.attackery = atloc.y
-        hit.attaclerz = atloc.z
-            //Player
-            if target:isa("Player") then
-                local tarloc target:GetOrigin()
-                hit.action = "hit_player"
-                hit.target_steamId = target:GetUserId()
-                hit.target_team = target:GetTeamNumber()
-                hit.target_weapon = target:GetActiveWeaponName()
-                hit.target_lifeform = target:GetMapName()
-                target_hp = target:GetHealth()
-                target_armor = target:GetArmor(),
-                targetx = toString(targetloc.x) ,
-                targety = toString(targetloc.y) ,
-                targetz = toString(targetloc.z),    
-            else target:isa("Structure")
-                local strloc = target:GetOrigin()
-                hit.structure_id = target:GetID(),
-                hit.structure_team = target:GetTeamNumber()
-                hit.structure_cost= target:GetCost()
-                hit.structure_name = target:GetMapName()
-                hit.structure_x = toString(strloc.x)
-                hit.structure_y = toString(strloc.y)
-                hit.structure_z = toString(strloc.z)  
-                hit.action = "hit_structure"
+        if attacker:isa("Player") then
+            if damage > 0  then 
+            local hit = {} 
+            local atloc = attacker:GetOrigin()
+            hit.attacker_steamId = attacker:GetUserId()
+            hit.attacker_team = attacker:GetTeamNumber()
+            hit.attacker_weapon = attacker:GetActiveWeaponName()
+            hit.attacker_hp = attacker:GetHealth()
+            hit.attacker_amor = attacker:GetArmor()
+            hit.attackerx = atloc.x
+            hit.attackery = atloc.y
+            hit.attaclerz = atloc.z
+                //Player
+                if target:isa("Player") then
+                    local tarloc target:GetOrigin()
+                    hit.action = "hit_player"
+                    hit.target_steamId = target:GetUserId()
+                    hit.target_team = target:GetTeamNumber()
+                    hit.target_weapon = target:GetActiveWeaponName()
+                    hit.target_lifeform = target:GetMapName()
+                    target_hp = target:GetHealth()
+                    target_armor = target:GetArmor(),
+                    targetx = toString(targetloc.x) ,
+                    targety = toString(targetloc.y) ,
+                    targetz = toString(targetloc.z),    
+                else target:isa("Structure")
+                    local strloc = target:GetOrigin()
+                    hit.structure_id = target:GetID(),
+                    hit.structure_team = target:GetTeamNumber()
+                    hit.structure_cost= target:GetCost()
+                    hit.structure_name = target:GetMapName()
+                    hit.structure_x = toString(strloc.x)
+                    hit.structure_y = toString(strloc.y)
+                    hit.structure_z = toString(strloc.z)  
+                    hit.action = "hit_structure"
+                end
+            self:addLog(hit)
+            else then //Miss
             end
-        self:addLog(hit)
-        else then //Miss
-        end
-     end*/ end )
+         end
+     end )
     
     Shine.Hook.Add("OnFinishedBuilt","AddBuildtoStats",function(builder) 
         local strloc = self:GetOrigin()
@@ -670,6 +671,7 @@ function Plugin:updateWeaponData(RBPSplayer)
     // Happens every second,
     // checks if current weapon exists in weapons table,
     // if it does increases it by 1, if it doesnt its added
+    // Test to use Think() Hook with this
     
     local foundId = false
     
@@ -750,154 +752,6 @@ local amount = 0
     end
     
     return amount
-end
-
-function Plugin:UpdatePlayerInTable(client)
-    if not client then return end
-    local player = client:GetControllingPlayer()
-    local steamId = client:GetUserId()
-    local origin = player:GetOrigin()
-
-    if RBPSdebug and player == nil then
-    Shared.Message("Trying to update nil player")
-            return	
-    end	
-
-        local weapon = "none"
-
-    for key,taulu in pairs(Plugin.Players) do
-    --Jos taulun(pelaajan) steamid on sama kuin etsittävä niin päivitetään tiedot.
-    if (taulu["isbot"] == false and taulu["steamId"] == steamId) or (taulu["isbot"] == true and taulu["name"] == player:GetName()) then
-    taulu = Plugin:checkTeamChange(taulu,player)
-    taulu = Plugin:checkLifeformChange(taulu,player)
-
-    if taulu.lifeform == "dead" then //TODO optimize, happens many times when dead
-    taulu.damageTaken = {}
-    taulu.killstreak = 0
-    end	
-
-                //weapon table>>
-                    if player.GetActiveWeapon and player:GetActiveWeapon() then
-                        weapon = player:GetActiveWeapon():GetMapName()
-                    end
-                    
-                    taulu["weapon"] = weapon
-                    Plugin:updateWeaponData(taulu)
-    //weapon table<<
-
-    if client:GetUserId() ~= 0 then
-    taulu["steamId"] = client:GetUserId()
-    end
-    taulu["name"] = player:GetName()
-    taulu["assists"] = player:GetAssists()
-    if HasMixin(player, "Scoring") then taulu["score"] = player:GetScore() end
-    taulu["ping"] = client:GetPing()
-    taulu["teamnumber"] = player:GetTeamNumber()
-    taulu["isbot"] = client:GetIsVirtual()	
-    taulu["isCommander"] = player:GetIsCommander()
-
-    if RBPSconfig.afkKickEnabled and RBPSnumperOfPlayers > RBPSconfig.afkKickPlayersToEnable and Plugin:areSameCoordinates(taulu,origin) then	
-    taulu["afkCount"] = taulu["afkCount"] + 1
-
-    if taulu["afkCount"] == RBPSconfig.afkKickIdleTime and Plugin:isUserAdmin(nil,taulu["steamId"]) == false then
-    taulu["afkCount"] = 0	
-
-                        //use server.getowner for player kicking, prob same than kicking client, but there were complains about zombie players
-                        local afkPlayer = client:GetControllingPlayer()
-                        local afkPlayerOwner = nil
-                        if afkPlayer then
-                            afkPlayerOwner = Server.GetOwner(afkPlayer)
-                        end
-                        
-                        if afkPlayerOwner then
-                            Server.DisconnectClient(afkPlayerOwner)
-                            Shared.Message(string.format("%s afk kicked from the server", taulu["name"]))
-                        end
-                                                   
-    end
-
-    if taulu["afkCount"] == RBPSconfig.afkKickIdleTime*0.8 and Plugin:isUserAdmin(nil,taulu["steamId"])==false then
-    Plugin:PlayerSay(taulu["steamId"],"Move or you are going to get afk kicked soon.")
-    end
-    else
-    taulu["afkCount"] = 0
-    end
-
-    taulu["x"] = origin.x
-    taulu["y"] = origin.y
-    taulu["z"] = origin.z	
-    //Shared.Message("x: " .. taulu["x"] .. ", y: " .. taulu["y"] .. ", z: " .. taulu["z"])
-
-    if string.format("%.1f", taulu.x)~=string.format("%.1f", taulu.lx) then
-    if string.format("%.1f", taulu.y)~=string.format("%.1f", taulu.ly) then
-    if string.format("%.1f", taulu.z)~=string.format("%.1f", taulu.lz) then
-    taulu.lx=taulu.x
-    taulu.ly=taulu.y
-    taulu.lz=taulu.z	
-    end
-    end
-    end
-
-    //unstuck feature>>
-    if RBPSconfig.unstuck and taulu.unstuck then
-    if taulu.unstuckCounter == RBPSadvancedConfig.unstuckTime then
-
-                        if taulu.lastCoords ~= taulu.x + taulu.y + taulu.z then
-                            Plugin:PlayerSay(client:GetUserId(),"You moved during unstuck counter, not unstucking.")
-                            taulu.unstuckCounter=0
-                            taulu.unstuck = false
-                        else //did not move
-                                            
-                            local sameCoords = false	
-                            
-                            Plugin:messageAll(player:GetName() .. " has used /unstuck.")
-                            taulu.counter = 0
-                            
-                            if string.format("%.1f", taulu.x)==string.format("%.1f", taulu.lx) then
-                                if string.format("%.1f", taulu.y)==string.format("%.1f", taulu.ly) then
-                                    if string.format("%.1f", taulu.z)==string.format("%.1f", taulu.lz) then
-                                        sameCoords = true
-                                    end
-                                end
-                            end
-                            
-                            taulu.unstuckCounter=0
-                            taulu.unstuck = false
-                            local checks=0
-                            if sameCoords then //add some random and test if player is colliding
-                                for c=1,20 do
-                                    local rx = math.random(-20,20)/100
-                                    local ry = math.random(-20,20)/100
-                                    local rz = math.random(-20,20)/100
-                                                                                                                                    
-                                    player:SetOrigin(Vector(taulu.lx+rx, taulu.ly+ry, taulu.lz+rz))
-                                    if player:GetIsColliding() == false then break end
-                                             
-                                end
-                            else
-                                player:SetOrigin(Vector(taulu.lx, taulu.ly, taulu.lz))
-                            end	
-                        end
-
-    else
-    Plugin:PlayerSay(client:GetUserId(),"Unstucking you in " .. (RBPSadvancedConfig.unstuckTime - taulu.unstuckCounter) .. " seconds.")
-    taulu.unstuckCounter = taulu.unstuckCounter +1	
-
-    end
-    end
-
-    for k,d in pairs(taulu.damageTaken) do	
-    d.time = d.time +1
-    if d.time > RBPSassistTime then
-                        table.remove(taulu.damageTaken,k)	
-    end
-    end
-    //<<
-
-    return
-    end
-    end
-
 end
 
 function Plugin:getPlayerClientBySteamId(steamId)
