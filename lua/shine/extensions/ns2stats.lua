@@ -243,12 +243,12 @@ end
 //all the send Stuff
 
 self.logInit = false
-self.log = ""
+RBPSlog = ""
 RBPSlogPartNumber = 1
 
 function Plugin:initLog ()
     self.logInit = true
-    self.log = ""
+    RBPSlog = ""
 end
 
 function Plugin:addLog(tbl)
@@ -261,7 +261,7 @@ function Plugin:addLog(tbl)
     
     tbl.time = Shared.GetGMTString(false)
     tbl.gametime = Shared.GetTime() - Plugin.gamestarted
-    self.log = self.log .. json.encode(tbl) .."\n"	
+    RBPSlog = RBPSlog .. json.encode(tbl) .."\n"	
     //local data = RBPSlibc:CompressHuffman(RBPSlog)
     //Notify("compress size: " .. string.len(data) .. "decompress size: " .. string.len(RBPSlibc:Decompress(data)))        
     RBPSlogPartNumber = RBPSlogPartNumber + 1
@@ -275,7 +275,7 @@ function Plugin:sendData()
     local params =
     {
         key = RBPSadvancedConfig.key,
-        roundlog = self.log,
+        roundlog = RBPSlog,
         part_number = RBPSlogPartNumber,
         last_part = RBPSgameFinished,
         map = Shared.GetMapName(),
@@ -284,7 +284,7 @@ function Plugin:sendData()
     RBPSlastGameFinished = RBPSgameFinished
    if RBPSlastLog == nil then
     RBPSlastLogPartNumber = RBPSlogPartNumber	
-    RBPSlastLog = self.log
+    RBPSlastLog = RBPSlog
     self.initLog() //clears log	
         else //if we still have data in last log, we wont send data normally, since it would be duplicated data
         
