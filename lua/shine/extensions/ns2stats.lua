@@ -18,7 +18,7 @@ self.websiteStatusUrl = "http://ns2stats.org/api/sendstatus" //this is url where
 self.websiteApiUrl = "http://ns2stats.org/api"
 
 //Score datatable 
-Local Assist={}
+local Assist={}
 Plugin.Players = {}
 
 function Plugin:Initialise()
