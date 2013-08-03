@@ -193,8 +193,17 @@ function Plugin:OnUpgradeFinished(structure, researchId)
     }
     self:addLog(upgade)
 end
-function Plugin:OnGamestart()
-    Plugin:addPlayersToLog(0)
+
+//check for Gamestart
+function Plugin:CheckGameStart()
+    local Gamerules = GetGamerules()
+
+    if not Gamerules then return end
+
+    local State = Gamerules:GetGameState()
+
+    if State ~= kGameState.NotStarted and State ~= kGameState.PreGame then Plugin:addPlayersToLog(0) end
+  
 end
 
 //Round ends
