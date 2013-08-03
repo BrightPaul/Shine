@@ -23,7 +23,8 @@ self.assist={}
 function Plugin:Initialise()
     //TODO: add all Hooks here
     //Shine.Hook.SetupClassHook( string Class, string Method, string HookName, "PassivePost" )
-
+    
+    Shine.Hook.SetupClassHook("ConstructMixin","OnConstructionComplete","OnFinishedBuilt", "PassivPre")
     Shine.Hook.SetupClassHook( "BuildingMixin", "AttemptToBuild", "BuildingDropped", "PassivePost" )
     Shine.Hook.SetupClassHook( "DamageMixin", "DoDamage", "DealedDamage", "PassivePost" )
     Shine.Hook.SetupClassHook{ "ScoringMixin", "AddScore","ScoreChanged","PassivePost")
@@ -38,7 +39,23 @@ function Plugin:Initialise()
         if target:isa("Player") then
         self.assist[toString(target:GetUserId())][toString(attacker:GetUserId())]= true
            //hit_player
-    end end end )*/
+    end end*/ end )
+    Shine.Hook.Add("OnFinishedBuilt","AddBuildtoStats",function(builder) 
+        local strloc = self:GetOrigin()
+        local build=
+        {
+            id = self:GetId(), //test this self...
+            builder_name = builder:GetName(),
+            steamId = builder:GetUserId()
+            structure_cost=self:GetCost()
+            team = builder:GetTeamNumber(),
+            structure_name = TargetEntity.kMapName,
+            structure_x = toString(strloc.x),
+            structure_y = toString(strloc.y),
+            structure_z = toString(strloc.z)
+        }
+        addLog(build)
+        end)
 end
 
 function Plugin:OnEntityKilled(Gamerules, TargetEntity, Attacker, Inflictor, Point, Direction)
@@ -115,14 +132,11 @@ function Plugin:ClientConnect( Client )
     if Client:GetIsVirtual() then return end
     local Player = Client:GetControllingPlayer()
     if not Player then return end
-    if self.score[toString(Client:GetUserId())]== nil then
-        score[toString(Client:GetUserId())] = {id=toString(Client:GetUserId()),name=player:getName(),team = 0,com =false,score =0 ,kills = 0,deaths = 0, assists = 0, pdmg = 0, sdmg = 0 ,hits = 0, playedTime = 0,connected = true}
-    else self.score[toString(Client:GetUserId())].connected = true  
     local connect={
             action = "connect"
             steamId = Client:GetUserId()
     }
-addLog(connect)   
+    addLog(connect)   
 end
 //PlayerDisconnect
 function Plugin:ClientDisconnect(Client)
@@ -130,13 +144,23 @@ function Plugin:ClientDisconnect(Client)
     if Client:GetIsVirtual() then return end
     local Player = Client:GetControllingPlayer()
     if not Player then return end
-    self.score[toString(Client:GetUserId())].connected = false
     local connect={
             action = "disconnect"
             steamId = Client:GetUserId()
             score = self.score[toString(Client:GetUserId())].score
     }
     addLog(connect)
+end
+// Player joins a team
+function Plugin:JoinTeam( Gamerules, Player, NewTeam, Force )
+    local join =
+    {
+        action = "player_join_team",
+        name= Player:GetName(),
+        team = Player:GetTeamNumber(),
+        steamId = Player:GetUserId()
+    }
+    addLog(join)
 end
 
 //all the send Stuff
