@@ -32,13 +32,13 @@ function Plugin:Initialise()
     // add all Data Function to Hooks Shine.Hook.Add( string HookName, string UniqueID, function HookFunction [, int Priority ] )
     Shine.Hook.Add( "BuildingDropped", "AddBuildingdropped", function(newEnt, commander) /*add function stuff here*/ end )
     Shine.Hook.Add( "DealedDamage", "AddDamagetoS", function(target,attacker,damage)
-    if attacker:isa("Player") then
+    /*if attacker:isa("Player") then
     local id = self.score[toString(attacker]
     if damage > 0  then 
         if target:isa("Player") then
         self.assist[toString(target:GetUserId())][toString(attacker:GetUserId())]= true
            //hit_player
-    end end end )
+    end end end )*/
 end
 
 function Plugin:OnEntityKilled(Gamerules, TargetEntity, Attacker, Inflictor, Point, Direction)
