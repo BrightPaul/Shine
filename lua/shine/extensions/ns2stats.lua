@@ -19,7 +19,7 @@ self.websiteApiUrl = "http://ns2stats.org/api"
 
 //Score datatable 
 Local Assist={}
-local ScoreTable ={} // ScoreTable.id.(stemid / name / ip etc)
+Plugin.Players = {}
 
 function Plugin:Initialise()
     //TODO: add all Hooks here
@@ -389,8 +389,6 @@ function Plugin:sendServerStatus(gameState)
 
 end
 
-
-Plugin.Players = { }
 
 function Plugin:addKill(attacker_steamId,target_steamId)
     //target_steamId not used yet
