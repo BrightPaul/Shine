@@ -260,7 +260,7 @@ function Plugin:addLog(tbl)
     end
     
     tbl.time = Shared.GetGMTString(false)
-    tbl.gametime = Shared.GetTime() - RBPS.gamestarted
+    tbl.gametime = Shared.GetTime() - Plugin.gamestarted
     self.log = self.log .. json.encode(tbl) .."\n"	
     //local data = RBPSlibc:CompressHuffman(RBPSlog)
     //Notify("compress size: " .. string.len(data) .. "decompress size: " .. string.len(RBPSlibc:Decompress(data)))        
@@ -319,10 +319,10 @@ function Plugin:sendData()
         }
         
         if RBPSdebug then
-    Notify("Resending part of data to :" .. RBPS.websiteDataUrl)
+    Notify("Resending part of data to :" .. Plugin.websiteDataUrl)
     end	
 
-    Shared.SendHTTPRequest(RBPS.websiteDataUrl, "POST", params, function(response,status) Plugin:onHTTPResponseFromSend(client,"send",response,status) end)	
+    Shared.SendHTTPRequest(Plugin.websiteDataUrl, "POST", params, function(response,status) Plugin:onHTTPResponseFromSend(client,"send",response,status) end)	
 
         RBPSsendStartTime = Shared.GetSystemTime()
         RBPSresendCount = RBPSresendCount + 1
@@ -383,25 +383,25 @@ end
 
 function Plugin:sendServerStatus(gameState)
     local stime = Shared.GetGMTString(false)
-    local gameTime = Shared.GetTime() - RBPS.gamestarted
+    local gameTime = Shared.GetTime() - Plugin.gamestarted
         local params =
         {
             key = RBPSadvancedConfig.key,
-            players = json.encode(RBPS.Players),
+            players = json.encode(Plugin.Players),
             state = gameState,
             time = stime,
             gametime = gameTime,
             map = Shared.GetMapName(),
         }
 
-    Shared.SendHTTPRequest(RBPS.websiteStatusUrl, "POST", params, function(response,status) Plugin:onHTTPResponseFromSendStatus(client,"sendstatus",response,status) end)	
+    Shared.SendHTTPRequest(Plugin.websiteStatusUrl, "POST", params, function(response,status) Plugin:onHTTPResponseFromSendStatus(client,"sendstatus",response,status) end)	
 
 end
 
 
 function Plugin:addKill(attacker_steamId,target_steamId)
     //target_steamId not used yet
-    for key,taulu in pairs(RBPS.Players) do	
+    for key,taulu in pairs(Plugin.Players) do	
         if taulu["steamId"] == attacker_steamId then	
             taulu["killstreak"] = taulu["killstreak"] +1	
             Plugin:checkForMultiKills(taulu["name"],taulu["killstreak"])	
@@ -419,7 +419,7 @@ end
 
 //To redo: assists
 function Plugin:addAssists(attacker_steamId,target_steamId, pointValue)
-    for key,taulu in pairs(RBPS.Players) do
+    for key,taulu in pairs(Plugin.Players) do
         if taulu["steamId"] == target_steamId then
             for k,d in pairs(taulu.damageTaken) do	
                 if d.steamId ~= attacker_steamId then
@@ -443,7 +443,7 @@ end
 
 function Plugin:playerAddDamageTaken(attacker_steamId,target_steamId)
 
-for key,taulu in pairs(RBPS.Players) do	
+for key,taulu in pairs(Plugin.Players) do	
 if taulu["steamId"] == target_steamId then
 //if steamid already in table then update, else add
 for k,d in pairs(taulu.damageTaken) do	
@@ -470,7 +470,7 @@ end
 function Plugin:addPlayerToTable(client)
     if not client then return end
     if Plugin:IsClientInTable(client) == false then	
-        table.insert(RBPS.Players, Plugin:createPlayerTable(client))	
+        table.insert(Plugin.Players, Plugin:createPlayerTable(client))	
     else
         Plugin:setConnected(client)
 end
@@ -486,8 +486,8 @@ function Plugin:setConnected(client)
 end
 function Plugin:getNumberOfConnectedPlayers()
     local num=0
-    for p = 1, #RBPS.Players do	
-        local player = RBPS.Players[p]	
+    for p = 1, #Plugin.Players do	
+        local player = Plugin.Players[p]	
         if not player.dc then
             num = num +1
         end
@@ -497,8 +497,8 @@ end
 
 function Plugin:getVotersOnMapId(id)
     local num=0
-    for p = 1, #RBPS.Players do	
-        local player = RBPS.Players[p]	
+    for p = 1, #Plugin.Players do	
+        local player = Plugin.Players[p]	
         if player.votedMap == id then
             num = num +1
         end
@@ -743,7 +743,7 @@ end
 
 function Plugin:getAmountOfPlayersPerTeam(team)
 local amount = 0
-    for key,taulu in pairs(RBPS.Players) do
+    for key,taulu in pairs(Plugin.Players) do
         if team == taulu.teamnumber and taulu.dc == false then
             amount = amount +1
         end
@@ -765,7 +765,7 @@ function Plugin:UpdatePlayerInTable(client)
 
         local weapon = "none"
 
-    for key,taulu in pairs(RBPS.Players) do
+    for key,taulu in pairs(Plugin.Players) do
     --Jos taulun(pelaajan) steamid on sama kuin etsitt‰v‰ niin p‰ivitet‰‰n tiedot.
     if (taulu["isbot"] == false and taulu["steamId"] == steamId) or (taulu["isbot"] == true and taulu["name"] == player:GetName()) then
     taulu = Plugin:checkTeamChange(taulu,player)
@@ -931,7 +931,7 @@ if client == nil then
 local steamId = client:GetUserId()
 
 
-for key,taulu in pairs(RBPS.Players) do	
+for key,taulu in pairs(Plugin.Players) do	
 if steamId then
 if taulu["steamId"] == steamId then return taulu end
 end	
@@ -945,7 +945,7 @@ end
 
 function Plugin:getTeamCommanderSteamid(teamNumber)
 
-    for key,taulu in pairs(RBPS.Players) do	
+    for key,taulu in pairs(Plugin.Players) do	
         if taulu["isCommander"] and taulu["teamnumber"] == teamNumber then
 return taulu["steamId"]
 end	
@@ -955,7 +955,7 @@ return -1
 end
 
 function Plugin:getPlayerBySteamId(steamId)
-    for key,taulu in pairs(RBPS.Players) do	
+    for key,taulu in pairs(Plugin.Players) do	
     
         if steamId then
 if taulu["steamId"] .. "" == steamId .. "" then return taulu end
@@ -966,7 +966,7 @@ return nil
 end
 
 function Plugin:getPlayerByName(name)
-    for key,taulu in pairs(RBPS.Players) do	
+    for key,taulu in pairs(Plugin.Players) do	
         if name then
 if taulu["name"] == name then return taulu end
 end	
@@ -996,7 +996,7 @@ local name = player:GetName()
         end
     end
 
-for key,taulu in pairs(RBPS.Players) do	
+for key,taulu in pairs(Plugin.Players) do	
 if steamId then
 if taulu["steamId"] == steamId then return taulu end
 end
@@ -1014,7 +1014,7 @@ return nil
 end
 
 
-function Plugin:areSameCoordinates(a,b) //first parameter needs to be RBPS.Player
+function Plugin:areSameCoordinates(a,b) //first parameter needs to be Plugin.Player
  local ax = string.format("%.1f", a.x)
  local ay = string.format("%.1f", a.y)
  local az = string.format("%.1f", a.z)
@@ -1054,7 +1054,7 @@ function Plugin:findPlayerScoreFromTable(client)
 
 local steamId = client:GetUserId()
 
-    for key,taulu in pairs(RBPS.Players) do	
+    for key,taulu in pairs(Plugin.Players) do	
     if steamId then
     if taulu["steamId"] == steamId then return taulu["score"] end
     end
@@ -1074,18 +1074,18 @@ function Plugin:addPlayersToLog(type)
     end
     
     //reset codes
-    for p = 1, #RBPS.Players do	
-        local player = RBPS.Players[p]	
+    for p = 1, #Plugin.Players do	
+        local player = Plugin.Players[p]	
         player.code = 0
     end
     
-    tmp.list = RBPS.Players
+    tmp.list = Plugin.Players
     
 Plugin:addLog(tmp)
 end
 
 function Plugin:clearPlayersTable()
-    RBPS.Players = { }
+    Plugin.Players = { }
 end
 
 function Plugin:PrintTable(tbl)
