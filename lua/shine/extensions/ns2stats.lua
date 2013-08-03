@@ -194,11 +194,12 @@ function Plugin:OnUpgradeFinished(structure, researchId)
     self:addLog(upgade)
 end
 function Plugin:OnGamestart()
-    //Player Start_list
+    Plugin:addPlayersToLog(0)
 end
-    //Round ends
+
+//Round ends
 function Plugin:EndGame()
-    //Player End_List
+    Plugin:addPlayersToLog(1)
     self.sendData() //senddata also clears log
 end
 
@@ -715,41 +716,6 @@ local currentTeam = newPlayer:GetTeamNumber()
     return player
 end
 
-        
-        
-function Plugin:returnDisconnectedPlayer() //TODO: fix, this function doesnt really work
-
-    local allPlayers = Shared.GetEntitiesWithClassname("Player")
-    local theplayer = nil
-                
-        for p = 1, #RBPS.Players do	
-        
-            local player = RBPS.Players[p]	
-            local found = false
-            
-            for index, fromPlayer in ientitylist(allPlayers) do
-                local client = Server.GetOwner(fromPlayer)
-                
-                if client ~= nil then
-                if client:GetUserId() == player.steamId then
-                    found = true
-                end
-                end
-            end
-            
-            if found==false then
-                if player.dc == false then
-                    //player just disconnected
-                    theplayer=player
-                end
-                player.dc = true
-            else
-                player.dc = false
-            end
-        end
-    
-    return theplayer
-end
 
 function Plugin:IsClientInTable(client)
 
@@ -757,8 +723,8 @@ if not client then return false end
 
     local steamId = client:GetUserId()
 
-for p = 1, #RBPS.Players do	
-local player = RBPS.Players[p]	
+for p = 1, #Plugin.Players do	
+local player = Plugin.Players[p]	
 
 if player.steamId == steamId then
 return true
@@ -780,150 +746,150 @@ local amount = 0
 end
 
 function Plugin:UpdatePlayerInTable(client)
-if not client then return end
-local player = client:GetControllingPlayer()
-local steamId = client:GetUserId()
-local origin = player:GetOrigin()
+    if not client then return end
+    local player = client:GetControllingPlayer()
+    local steamId = client:GetUserId()
+    local origin = player:GetOrigin()
 
-if RBPSdebug and player == nil then
-Shared.Message("Trying to update nil player")
-        return	
-end	
+    if RBPSdebug and player == nil then
+    Shared.Message("Trying to update nil player")
+            return	
+    end	
 
-    local weapon = "none"
+        local weapon = "none"
 
-for key,taulu in pairs(RBPS.Players) do
---Jos taulun(pelaajan) steamid on sama kuin etsittävä niin päivitetään tiedot.
-if (taulu["isbot"] == false and taulu["steamId"] == steamId) or (taulu["isbot"] == true and taulu["name"] == player:GetName()) then
-taulu = Plugin:checkTeamChange(taulu,player)
-taulu = Plugin:checkLifeformChange(taulu,player)
+    for key,taulu in pairs(RBPS.Players) do
+    --Jos taulun(pelaajan) steamid on sama kuin etsittävä niin päivitetään tiedot.
+    if (taulu["isbot"] == false and taulu["steamId"] == steamId) or (taulu["isbot"] == true and taulu["name"] == player:GetName()) then
+    taulu = Plugin:checkTeamChange(taulu,player)
+    taulu = Plugin:checkLifeformChange(taulu,player)
 
-if taulu.lifeform == "dead" then //TODO optimize, happens many times when dead
-taulu.damageTaken = {}
-taulu.killstreak = 0
-end	
+    if taulu.lifeform == "dead" then //TODO optimize, happens many times when dead
+    taulu.damageTaken = {}
+    taulu.killstreak = 0
+    end	
 
-            //weapon table>>
-                if player.GetActiveWeapon and player:GetActiveWeapon() then
-                    weapon = player:GetActiveWeapon():GetMapName()
-                end
-                
-                taulu["weapon"] = weapon
-                Plugin:updateWeaponData(taulu)
-//weapon table<<
-
-if client:GetUserId() ~= 0 then
-taulu["steamId"] = client:GetUserId()
-end
-taulu["name"] = player:GetName()
-taulu["assists"] = player:GetAssists()
-if HasMixin(player, "Scoring") then taulu["score"] = player:GetScore() end
-taulu["ping"] = client:GetPing()
-taulu["teamnumber"] = player:GetTeamNumber()
-taulu["isbot"] = client:GetIsVirtual()	
-taulu["isCommander"] = player:GetIsCommander()
-
-if RBPSconfig.afkKickEnabled and RBPSnumperOfPlayers > RBPSconfig.afkKickPlayersToEnable and Plugin:areSameCoordinates(taulu,origin) then	
-taulu["afkCount"] = taulu["afkCount"] + 1
-
-if taulu["afkCount"] == RBPSconfig.afkKickIdleTime and Plugin:isUserAdmin(nil,taulu["steamId"]) == false then
-taulu["afkCount"] = 0	
-
-                    //use server.getowner for player kicking, prob same than kicking client, but there were complains about zombie players
-                    local afkPlayer = client:GetControllingPlayer()
-                    local afkPlayerOwner = nil
-                    if afkPlayer then
-                        afkPlayerOwner = Server.GetOwner(afkPlayer)
+                //weapon table>>
+                    if player.GetActiveWeapon and player:GetActiveWeapon() then
+                        weapon = player:GetActiveWeapon():GetMapName()
                     end
                     
-                    if afkPlayerOwner then
-                        Server.DisconnectClient(afkPlayerOwner)
-                        Shared.Message(string.format("%s afk kicked from the server", taulu["name"]))
-                    end
-                                               
-end
+                    taulu["weapon"] = weapon
+                    Plugin:updateWeaponData(taulu)
+    //weapon table<<
 
-if taulu["afkCount"] == RBPSconfig.afkKickIdleTime*0.8 and Plugin:isUserAdmin(nil,taulu["steamId"])==false then
-Plugin:PlayerSay(taulu["steamId"],"Move or you are going to get afk kicked soon.")
-end
-else
-taulu["afkCount"] = 0
-end
+    if client:GetUserId() ~= 0 then
+    taulu["steamId"] = client:GetUserId()
+    end
+    taulu["name"] = player:GetName()
+    taulu["assists"] = player:GetAssists()
+    if HasMixin(player, "Scoring") then taulu["score"] = player:GetScore() end
+    taulu["ping"] = client:GetPing()
+    taulu["teamnumber"] = player:GetTeamNumber()
+    taulu["isbot"] = client:GetIsVirtual()	
+    taulu["isCommander"] = player:GetIsCommander()
 
-taulu["x"] = origin.x
-taulu["y"] = origin.y
-taulu["z"] = origin.z	
-//Shared.Message("x: " .. taulu["x"] .. ", y: " .. taulu["y"] .. ", z: " .. taulu["z"])
+    if RBPSconfig.afkKickEnabled and RBPSnumperOfPlayers > RBPSconfig.afkKickPlayersToEnable and Plugin:areSameCoordinates(taulu,origin) then	
+    taulu["afkCount"] = taulu["afkCount"] + 1
 
-if string.format("%.1f", taulu.x)~=string.format("%.1f", taulu.lx) then
-if string.format("%.1f", taulu.y)~=string.format("%.1f", taulu.ly) then
-if string.format("%.1f", taulu.z)~=string.format("%.1f", taulu.lz) then
-taulu.lx=taulu.x
-taulu.ly=taulu.y
-taulu.lz=taulu.z	
-end
-end
-end
+    if taulu["afkCount"] == RBPSconfig.afkKickIdleTime and Plugin:isUserAdmin(nil,taulu["steamId"]) == false then
+    taulu["afkCount"] = 0	
 
-//unstuck feature>>
-if RBPSconfig.unstuck and taulu.unstuck then
-if taulu.unstuckCounter == RBPSadvancedConfig.unstuckTime then
-
-                    if taulu.lastCoords ~= taulu.x + taulu.y + taulu.z then
-                        Plugin:PlayerSay(client:GetUserId(),"You moved during unstuck counter, not unstucking.")
-                        taulu.unstuckCounter=0
-                        taulu.unstuck = false
-                    else //did not move
-                                        
-                        local sameCoords = false	
-                        
-                        Plugin:messageAll(player:GetName() .. " has used /unstuck.")
-                        taulu.counter = 0
-                        
-                        if string.format("%.1f", taulu.x)==string.format("%.1f", taulu.lx) then
-                            if string.format("%.1f", taulu.y)==string.format("%.1f", taulu.ly) then
-                                if string.format("%.1f", taulu.z)==string.format("%.1f", taulu.lz) then
-                                    sameCoords = true
-                                end
-                            end
+                        //use server.getowner for player kicking, prob same than kicking client, but there were complains about zombie players
+                        local afkPlayer = client:GetControllingPlayer()
+                        local afkPlayerOwner = nil
+                        if afkPlayer then
+                            afkPlayerOwner = Server.GetOwner(afkPlayer)
                         end
                         
-                        taulu.unstuckCounter=0
-                        taulu.unstuck = false
-                        local checks=0
-                        if sameCoords then //add some random and test if player is colliding
-                            for c=1,20 do
-                                local rx = math.random(-20,20)/100
-                                local ry = math.random(-20,20)/100
-                                local rz = math.random(-20,20)/100
-                                                                                                                                
-                                player:SetOrigin(Vector(taulu.lx+rx, taulu.ly+ry, taulu.lz+rz))
-                                if player:GetIsColliding() == false then break end
-                                         
+                        if afkPlayerOwner then
+                            Server.DisconnectClient(afkPlayerOwner)
+                            Shared.Message(string.format("%s afk kicked from the server", taulu["name"]))
+                        end
+                                                   
+    end
+
+    if taulu["afkCount"] == RBPSconfig.afkKickIdleTime*0.8 and Plugin:isUserAdmin(nil,taulu["steamId"])==false then
+    Plugin:PlayerSay(taulu["steamId"],"Move or you are going to get afk kicked soon.")
+    end
+    else
+    taulu["afkCount"] = 0
+    end
+
+    taulu["x"] = origin.x
+    taulu["y"] = origin.y
+    taulu["z"] = origin.z	
+    //Shared.Message("x: " .. taulu["x"] .. ", y: " .. taulu["y"] .. ", z: " .. taulu["z"])
+
+    if string.format("%.1f", taulu.x)~=string.format("%.1f", taulu.lx) then
+    if string.format("%.1f", taulu.y)~=string.format("%.1f", taulu.ly) then
+    if string.format("%.1f", taulu.z)~=string.format("%.1f", taulu.lz) then
+    taulu.lx=taulu.x
+    taulu.ly=taulu.y
+    taulu.lz=taulu.z	
+    end
+    end
+    end
+
+    //unstuck feature>>
+    if RBPSconfig.unstuck and taulu.unstuck then
+    if taulu.unstuckCounter == RBPSadvancedConfig.unstuckTime then
+
+                        if taulu.lastCoords ~= taulu.x + taulu.y + taulu.z then
+                            Plugin:PlayerSay(client:GetUserId(),"You moved during unstuck counter, not unstucking.")
+                            taulu.unstuckCounter=0
+                            taulu.unstuck = false
+                        else //did not move
+                                            
+                            local sameCoords = false	
+                            
+                            Plugin:messageAll(player:GetName() .. " has used /unstuck.")
+                            taulu.counter = 0
+                            
+                            if string.format("%.1f", taulu.x)==string.format("%.1f", taulu.lx) then
+                                if string.format("%.1f", taulu.y)==string.format("%.1f", taulu.ly) then
+                                    if string.format("%.1f", taulu.z)==string.format("%.1f", taulu.lz) then
+                                        sameCoords = true
+                                    end
+                                end
                             end
-                        else
-                            player:SetOrigin(Vector(taulu.lx, taulu.ly, taulu.lz))
-                        end	
-                    end
+                            
+                            taulu.unstuckCounter=0
+                            taulu.unstuck = false
+                            local checks=0
+                            if sameCoords then //add some random and test if player is colliding
+                                for c=1,20 do
+                                    local rx = math.random(-20,20)/100
+                                    local ry = math.random(-20,20)/100
+                                    local rz = math.random(-20,20)/100
+                                                                                                                                    
+                                    player:SetOrigin(Vector(taulu.lx+rx, taulu.ly+ry, taulu.lz+rz))
+                                    if player:GetIsColliding() == false then break end
+                                             
+                                end
+                            else
+                                player:SetOrigin(Vector(taulu.lx, taulu.ly, taulu.lz))
+                            end	
+                        end
 
-else
-Plugin:PlayerSay(client:GetUserId(),"Unstucking you in " .. (RBPSadvancedConfig.unstuckTime - taulu.unstuckCounter) .. " seconds.")
-taulu.unstuckCounter = taulu.unstuckCounter +1	
+    else
+    Plugin:PlayerSay(client:GetUserId(),"Unstucking you in " .. (RBPSadvancedConfig.unstuckTime - taulu.unstuckCounter) .. " seconds.")
+    taulu.unstuckCounter = taulu.unstuckCounter +1	
 
-end
-end
+    end
+    end
 
-for k,d in pairs(taulu.damageTaken) do	
-d.time = d.time +1
-if d.time > RBPSassistTime then
-                    table.remove(taulu.damageTaken,k)	
-end
-end
-//<<
+    for k,d in pairs(taulu.damageTaken) do	
+    d.time = d.time +1
+    if d.time > RBPSassistTime then
+                        table.remove(taulu.damageTaken,k)	
+    end
+    end
+    //<<
 
-return
-end
-end
+    return
+    end
+    end
 
 end
 
