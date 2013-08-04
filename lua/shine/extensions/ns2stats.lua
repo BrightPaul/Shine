@@ -6,6 +6,7 @@ local Shine = Shine
 local Notify = Shared.Message
 
 local Plugin = {}
+local tostring = tostring 
 
 Plugin.Version = "0.1"
 
@@ -22,9 +23,9 @@ local Assist={}
 Plugin.Players = {}
 
 function Plugin:Initialise()
+    self.enabled = true
     //TODO: add all Hooks here
     //Shine.Hook.SetupClassHook( string Class, string Method, string HookName, "PassivePost" )
-    
     Shine.Hook.SetupClassHook("ConstructMixin","OnConstructionComplete","OnFinishedBuilt", "PassivPre")
     Shine.Hook.SetupClassHook( "BuildingMixin", "AttemptToBuild", "BuildingDropped", "PassivePost" )
     Shine.Hook.SetupClassHook( "DamageMixin", "DoDamage", "DealedDamage", "PassivePost" )
@@ -34,70 +35,62 @@ function Plugin:Initialise()
     Shine.Hook.SetupClassHook("ResearchMixin","SetResearching","OnTechStartResearch","PassivePre")
     //Todo: Add all add functions + sendtoserver
     // add all Data Function to Hooks Shine.Hook.Add( string HookName, string UniqueID, function HookFunction [, int Priority ] )
-    Shine.Hook.Add( "BuildingDropped", "AddBuildingdropped", function(newEnt, commander) /*add function stuff here*/ end )
-    Shine.Hook.Add( "DealedDamage", "AddDamagetoS", function(target,attacker,damage)
-        if attacker:isa("Player") then
-            if damage > 0  then 
-            local hit = {} 
-            local atloc = attacker:GetOrigin()
-            hit.attacker_steamId = attacker:GetUserId()
-            hit.attacker_team = attacker:GetTeamNumber()
-            hit.attacker_weapon = attacker:GetActiveWeaponName()
-            hit.attacker_hp = attacker:GetHealth()
-            hit.attacker_amor = attacker:GetArmor()
-            hit.attackerx = atloc.x
-            hit.attackery = atloc.y
-            hit.attaclerz = atloc.z
-                //Player
-                if target:isa("Player") then
-                    local tarloc target:GetOrigin()
-                    hit.action = "hit_player"
-                    hit.target_steamId = target:GetUserId()
-                    hit.target_team = target:GetTeamNumber()
-                    hit.target_weapon = target:GetActiveWeaponName()
-                    hit.target_lifeform = target:GetMapName()
-                    target_hp = target:GetHealth()
-                    target_armor = target:GetArmor(),
-                    targetx = toString(targetloc.x) ,
-                    targety = toString(targetloc.y) ,
-                    targetz = toString(targetloc.z),    
-                else target:isa("Structure")
-                    local strloc = target:GetOrigin()
-                    hit.structure_id = target:GetID(),
-                    hit.structure_team = target:GetTeamNumber()
-                    hit.structure_cost= target:GetCost()
-                    hit.structure_name = target:GetMapName()
-                    hit.structure_x = toString(strloc.x)
-                    hit.structure_y = toString(strloc.y)
-                    hit.structure_z = toString(strloc.z)  
-                    hit.action = "hit_structure"
-                end
-            self:addLog(hit)
-            else then //Miss
-            end
-         end
-     end )
-    
-    Shine.Hook.Add("OnFinishedBuilt","AddBuildtoStats",function(builder) 
-        local strloc = self:GetOrigin()
-        local build=
-        {
-            id = self:GetId(), //test this self...
-            builder_name = builder:GetName(),
-            steamId = builder:GetUserId()
-            structure_cost=self:GetCost()
-            team = builder:GetTeamNumber(),
-            structure_name = self:GetMapName(),
-            structure_x = toString(strloc.x),
-            structure_y = toString(strloc.y),
-            structure_z = toString(strloc.z)
-        }
-        self:addLog(build)
-        end)
-    Shine.Hook.Add("OnTechResearched","AddStatFTech", self:OnUpgradeFinished(structure, researchId))
-    Shine.Hook.Add("OnTechStartResearch","AddStatSTech", self:addUpgradeStartedToLog(researchNode, player)
+    Shine.Hook.Add( "BuildingDropped", "AddBuildingdropped", Plugin:OnBuildDropped(newEnt, commander))
+    Shine.Hook.Add( "DealedDamage", "AddDamagetoS", Plugin:OnDamageDealed(target,attacker,damage))
+    Shine.Hook.Add("OnFinishedBuilt","AddBuildtoStats",Plugin:OnBuildingBuilt(builder))
+    Shine.Hook.Add("OnTechResearched","AddStatFTech", Plugin:OnUpgradeFinished(structure, researchId))
+    Shine.Hook.Add("OnTechStartResearch","AddStatSTech", Plugin:addUpgradeStartedToLog(researchNode, player)
+    return true //finished loading
 end
 
+//All the Damage/Player Stuff
+
+//Dameage Dealed
+function Plugin:OnDamageDealed(target,attacker,damage)
+    if attacker:isa("Player") then
+        if damage > 0  then 
+        local hit = {} 
+        local atloc = attacker:GetOrigin()
+        hit.attacker_steamId = attacker:GetUserId()
+        hit.attacker_team = attacker:GetTeamNumber()
+        hit.attacker_weapon = attacker:GetActiveWeaponName()
+        hit.attacker_hp = attacker:GetHealth()
+        hit.attacker_amor = attacker:GetArmor()
+        hit.attackerx = atloc.x
+        hit.attackery = atloc.y
+        hit.attaclerz = atloc.z
+            //Player
+            if target:isa("Player") then
+                local tarloc target:GetOrigin()
+                hit.action = "hit_player"
+                hit.target_steamId = target:GetUserId()
+                hit.target_team = target:GetTeamNumber()
+                hit.target_weapon = target:GetActiveWeaponName()
+                hit.target_lifeform = target:GetMapName()
+                hit.target_hp = target:GetHealth()
+                hit.target_armor = target:GetArmor()
+                hit.targetx = toString(targetloc.x)
+                hit.targety = toString(targetloc.y)
+                hit.targetz = toString(targetloc.z)
+                Plugin:playerAddDamageTaken(hit.attacker_steamId,hit.target_steamId)    
+            else target:isa("Structure")
+                local strloc = target:GetOrigin()
+                hit.structure_id = target:GetID(),
+                hit.structure_team = target:GetTeamNumber()
+                hit.structure_cost= target:GetCost()
+                hit.structure_name = target:GetMapName()
+                hit.structure_x = toString(strloc.x)
+                hit.structure_y = toString(strloc.y)
+                hit.structure_z = toString(strloc.z)  
+                hit.action = "hit_structure"
+            end
+        self:addLog(hit)
+        else then //Miss
+        end
+    end
+end
+
+//Entity Killed
 function Plugin:OnEntityKilled(Gamerules, TargetEntity, Attacker, Inflictor, Point, Direction)
     //Structures
     if TargetEntity:isa("Structure") then
@@ -160,6 +153,33 @@ function Plugin:OnEntityKilled(Gamerules, TargetEntity, Attacker, Inflictor, Poi
     self:addLog(death)
 end
 
+//Building Stuff
+
+//Building Dropped
+function Plugin:OnBuildDropped(newEnt, commander)
+//TODO
+end
+
+//Building built
+function Plugin:OnBuildingBuilt(builder) 
+        local strloc = self:GetOrigin()
+        local build=
+        {
+            id = self:GetId(), //test this self...
+            builder_name = builder:GetName(),
+            steamId = builder:GetUserId()
+            structure_cost=self:GetCost()
+            team = builder:GetTeamNumber(),
+            structure_name = self:GetMapName(),
+            structure_x = toString(strloc.x),
+            structure_y = toString(strloc.y),
+            structure_z = toString(strloc.z)
+        }
+        self:addLog(build)
+end
+//Upgrade Stuff
+
+//UpgradesStarted
 function Plugin:addUpgradeStartedToLog(researchNode, player)
     if player:isa("Commander") then
         local client = Server.GetOwner(commander)
@@ -182,6 +202,7 @@ function Plugin:addUpgradeStartedToLog(researchNode, player)
 
 end
 
+//Upgradefinished
 function Plugin:OnUpgradeFinished(structure, researchId)
     local upgrade =
     {
@@ -194,6 +215,7 @@ function Plugin:OnUpgradeFinished(structure, researchId)
     }
     self:addLog(upgade)
 end
+// Game events
 
 //check for Gamestart
 function Plugin:CheckGameStart()
@@ -203,8 +225,7 @@ function Plugin:CheckGameStart()
 
     local State = Gamerules:GetGameState()
 
-    if State ~= kGameState.NotStarted and State ~= kGameState.PreGame then Plugin:addPlayersToLog(0) end
-  
+    if State ~= kGameState.NotStarted and State ~= kGameState.PreGame then Plugin:addPlayersToLog(0) end 
 end
 
 //Round ends
@@ -236,6 +257,7 @@ function Plugin:ClientDisconnect(Client)
     }
     self:addLog(connect)
 end
+
 // Player joins a team
 function Plugin:JoinTeam( Gamerules, Player, NewTeam, Force )
     Plugin:sddPlayerJoinedTeamToLog(Player, NewTeamNumber)  
@@ -399,6 +421,7 @@ function Plugin:sendServerStatus(gameState)
 
 end
 
+// Stat add Functions
 
 function Plugin:addKill(attacker_steamId,target_steamId)
     //target_steamId not used yet
@@ -442,8 +465,8 @@ function Plugin:addAssists(attacker_steamId,target_steamId, pointValue)
     end
 end
 
+//Damagetaken
 function Plugin:playerAddDamageTaken(attacker_steamId,target_steamId)
-
 for key,taulu in pairs(Plugin.Players) do	
 if taulu["steamId"] == target_steamId then
 //if steamid already in table then update, else add
@@ -946,6 +969,16 @@ function Plugin:PrintTable(tbl)
     for k,v in pairs(tbl) do
         print(k,v)
     end
+end
+
+//Cleanup
+
+function Plugin:Cleanup()
+    for _, Command in pairs( self.Commands ) do
+        Shine:RemoveCommand( Command.ConCmd, Command.ChatCmd )
+    end
+
+    self.Enabled = false
 end
 
 Shine:RegisterExtension( "ns2stats", Plugin )
