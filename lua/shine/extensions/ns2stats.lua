@@ -12,6 +12,7 @@ Plugin.Version = "0.2"
 
 Plugin.HasConfig = true
 
+Plugin.ConfigName = "Ns2Stats.json"
 Plugin.DefaultConfig =
 {
     Statsonline = true // Upload stats?
@@ -78,7 +79,7 @@ end )
     Shine.Hook.Add( "DealedDamage", "AddDamagetoS", Plugin:OnDamageDealed(target,attacker,doer,damage,damageType))
     Shine.Hook.Add("OnFinishedBuilt","AddBuildtoStats",Plugin:OnBuildingBuilt(builder))
     Shine.Hook.Add("OnTechResearched","AddStatFTech", Plugin:OnUpgradeFinished(structure, researchId))
-    Shine.Hook.Add("OnTechStartResearch","AddStatSTech", Plugin:addUpgradeStartedToLog(researchNode, player))
+    Shine.Hook.Add("OnTechStartResearch","AddStatSTech", Plugin:addUpgradeStartedToLog(researchNode, player))     
     return true //finished loading
 end
 
