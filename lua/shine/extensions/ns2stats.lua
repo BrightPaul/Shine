@@ -456,7 +456,7 @@ function Plugin:addAssists(attacker_steamId,target_steamId)
                         local player = client:GetControllingPlayer()
                         
                         if player then
-                            local pointValue = Plugin:getPlayerClientBySteamId(target_steamId):GetControllingPlayer:GetCost()
+                            local pointValue = Plugin:getPlayerClientBySteamId(target_steamId):GetControllingPlayer:GetPointValue()*0.5
                             // player:AddAssist() //RBPSplayer entity should update 1 second later automatically
                             player:AddScore(pointValue)
                         end
