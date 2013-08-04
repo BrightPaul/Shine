@@ -10,13 +10,22 @@ local tostring = tostring
 
 Plugin.Version = "0.2"
 
-//TODO: add Config later
-Plugin.HasConfig = false
-//Web stuff
-self.websiteUrl = "http://ns2stats.org" //this is url which is shown in player private messages, so its for advertising
-self.websiteDataUrl = "http://ns2stats.org/api/sendlog" //this is url where posted data is send and where it is parsed into database
-self.websiteStatusUrl = "http://ns2stats.org/api/sendstatus" //this is url where posted data is send on status sends
-self.websiteApiUrl = "http://ns2stats.org/api"
+Plugin.HasConfig = true
+
+Plugin.DefaultConfig =
+{
+    Statsonline = true // Upload stats?
+    WebsiteUrl = "http://ns2stats.org" //this is url which is shown in player private messages, so its for advertising
+    WebsiteDataUrl = "http://ns2stats.org/api/sendlog" //this is url where posted data is send and where it is parsed into database
+    WebsiteStatusUrl="http://ns2stats.org/api/sendstatus" //this is url where posted data is send on status sends
+    WebsiteApiUrl = "http://ns2stats.org/api"
+    Assists = true // Track assists?
+    Awards = true //show award (todo)
+    ServerKey = ""   
+}
+
+Plugin.CheckConfig = true
+
 
 //Score datatable 
 local Assist={}
@@ -25,8 +34,8 @@ Plugin.Players = {}
 function Plugin:Initialise()
     self.enabled = true
     //key move later to config
-    if RBPSadvancedConfig.key == "" then
-        Shared.SendHTTPRequest(self.websiteUrl .. "/api/generateKey/?s=7g94389u3r89wujj3r892jhr9fwj", "GET",
+    if self.config.ServerKey == "" then
+        Shared.SendHTTPRequest(self.config.website .. "/api/generateKey/?s=7g94389u3r89wujj3r892jhr9fwj", "GET",
             function(response) Plugin:acceptKey(response) end)
     end
     
@@ -40,7 +49,7 @@ function Plugin:Initialise()
     ShowSStats:Help("Shows server stats")
     local Verify = Shine:RegisterCommand( "sh_verify", {"verifystats","verify"},Plugin:SetAdminAtNS2Stats)
     Verify:AddParam{ Type = "clients")
-    Verify:Help ("Sets yourself as serveradmin at " + self.websiteUrl)
+    Verify:Help ("Sets yourself as serveradmin at " + self.config.websiteUrl)
     //Votemenu
     Shine.VoteMenu:AddPage( "Stats", function( self )
     self:AddSideButton( "Show my Stats", function()
@@ -222,7 +231,7 @@ end
 //Round ends
 function Plugin:EndGame()
     Plugin:addPlayersToLog(1)
-    self.sendData() //senddata also clears log
+    if self.config.Statsonline then self:sendData() end //senddata also clears log
 end
 
 //PlayerConnected
@@ -288,7 +297,7 @@ function Plugin:sendData()
  RBPSgameFinished = 1  
     local params =
     {
-        key = RBPSadvancedConfig.key,
+        key = self.config.ServerKey,
         roundlog = RBPSlog,
         part_number = RBPSlogPartNumber,
         last_part = RBPSgameFinished,
@@ -316,7 +325,7 @@ function Plugin:sendData()
     return
     end	
 
-    Shared.SendHTTPRequest(self.websiteDataUrl, "POST", params, function(response,status) self.onHTTPResponseFromSend(client,"send",response,status) end)	
+    Shared.SendHTTPRequest(self.config.websiteDataUrl, "POST", params, function(response,status) self.onHTTPResponseFromSend(client,"send",response,status) end)	
 
         RBPSsendStartTime = Shared.GetSystemTime()
     end
@@ -326,7 +335,7 @@ function Plugin:sendData()
          
         local params =
         {
-            key = RBPSadvancedConfig.key,
+            key = self.config.ServerKey,
             roundlog = RBPSlastLog,
             part_number = RBPSlastLogPartNumber,
             last_part = RBPSlastGameFinished
@@ -368,7 +377,7 @@ function Plugin:sendData()
                 local playerList = EntityListToTable(Shared.GetEntitiesWithClassname("Player"))
                 /*for p = 1, #playerList do
                     
-                    Cout:SendMessageToClient(playerList[p], "lastRoundLink",{lastRound = self.websiteUrl .. message.link})
+                    Cout:SendMessageToClient(playerList[p], "lastRoundLink",{lastRound = self.config.websiteUrl .. message.link})
                       
                 end*/
     end	
@@ -387,7 +396,7 @@ function Plugin:sendServerStatus(gameState)
     local gameTime = Shared.GetTime() - Plugin.gamestarted
         local params =
         {
-            key = RBPSadvancedConfig.key,
+            key = self.config.ServerKey,
             players = json.encode(Plugin.Players),
             state = gameState,
             time = stime,
@@ -924,8 +933,8 @@ function Plugin:acceptKey(response)
         else
             local decoded = json.decode(response)
             if decoded and decoded.key then
-                RBPSadvancedConfig.key = decoded.key
-                Notify("NS2Stats: Key " .. RBPSadvancedConfig.key .. " has been assigned to this server")
+                self.config.ServerKey = decoded.key
+                Notify("NS2Stats: Key " .. self.config.ServerKey .. " has been assigned to this server")
                 Notify("NS2Stats: You may use admin commands (sv_help) to change NS2Stats settings.")
                 Notify("NS2Stats: You may use admin command sv_verity_server to claim this server.")
                 Notify("NS2Stats setup complete.")
@@ -1098,13 +1107,13 @@ function Plugin:addHitToLog(target, attacker, doer, damage, damageType)
             attackery = RBPSplayer.y,
             attackerz = RBPSplayer.z,
                         
-structure_id = target:GetId(),
-structure_name = target:GetMapName(),	
-structure_x = string.format("%.4f", structureOrigin.x),
-structure_y = string.format("%.4f", structureOrigin.y),
-structure_z = string.format("%.4f", structureOrigin.z),	
+            structure_id = target:GetId(),
+            structure_name = target:GetMapName(),	
+            structure_x = string.format("%.4f", structureOrigin.x),
+            structure_y = string.format("%.4f", structureOrigin.y),
+            structure_z = string.format("%.4f", structureOrigin.z),	
 
-damageType = damageType,
+            damageType = damageType,
             damage = damage
         }
         
@@ -1259,20 +1268,20 @@ end
 function Plugin:ShowPlayerStats(Client,Playername)
     if Playername == "" then playerid = Client:GetUserID()
     else 
-    local url = self.websiteurl + "/player/player/" + tostring(playerid)
+    local url = self.config.websiteurl + "/player/player/" + tostring(playerid)
     Server.SendNetworkMessage( Client, "Shine_Web", { URL = url }, true )
 end
 
 //open Ingame_Browser with Server Stats
 function Plugin:ShowServerStats(Client)
-        local url= self.websiteurl + "/server/server/" // + to string(self.config.serverid)
+        local url= self.config.websiteurl + "/server/server/" // + to string(self.config.serverid)
     	Server.SendNetworkMessage( Client, "Shine_Web", { URL = url }, true )
 end
 
 // set commanduser as admin at ns2stats
 function Plugin:SetAdminAtNS2Stats(Client)
 if Shine:HasAccess( Client, "sh_verify" ) then
-    Shared.SendHTTPRequest(RBPS.websiteUrl .. "/api/verifyServer/" .. Client:GetUserId() .. "?s=479qeuehq2829&key=" .. RBPSadvancedConfig.key, "GET",
+    Shared.SendHTTPRequest(RBPS.websiteUrl .. "/api/verifyServer/" .. Client:GetUserId() .. "?s=479qeuehq2829&key=" .. self.config.ServerKey, "GET",
         function(response) RBPS:onHTTPRespVerify(Client,response) end) end
 end
 //Cleanup
