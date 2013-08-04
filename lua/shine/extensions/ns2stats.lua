@@ -30,18 +30,17 @@ Plugin.CheckConfig = true
 
 
 //Score datatable 
-local Assist={}
+local Assists={}
 Plugin.Players = {}
 
 function Plugin:Initialise()
     self.enabled = true
-    //key move later to config
     if self.config.ServerKey == "" then
         Shared.SendHTTPRequest(self.config.website .. "/api/generateKey/?s=7g94389u3r89wujj3r892jhr9fwj", "GET",
             function(response) Plugin:acceptKey(response) end)
     end
     
-    //Create Commands
+    //Commands
     local ShowPStats = Shine:RegisterCommand( "sh_showplayerstats", {"showplayerstats","showstats"}, Plugin:ShowPlayerStats,true,true )
     ShowPStats:AddParam{ Type = "clients")
     ShowPStats:AddParam{ Type = "string",Optimal = true ,TakeRestOfLine = true,Default ="", MaxLength = kMaxChatLength)
@@ -52,6 +51,7 @@ function Plugin:Initialise()
     local Verify = Shine:RegisterCommand( "sh_verify", {"verifystats","verify"},Plugin:SetAdminAtNS2Stats)
     Verify:AddParam{ Type = "clients")
     Verify:Help ("Sets yourself as serveradmin at " + self.config.websiteUrl)
+    
     //Votemenu
     Shine.VoteMenu:AddPage( "Stats", function( self )
     self:AddSideButton( "Show my Stats", function()
@@ -73,13 +73,15 @@ end )
     Shine.Hook.SetupClassHock( "NS2Gamerules", "OnEntityDestroy","OnPlayerDeath","PassivePost")
     Shine.Hook.SetupClassHook("ResearchMixin","TechResearched","OnTechResearched","PassivePost")
     Shine.Hook.SetupClassHook("ResearchMixin","SetResearching","OnTechStartResearch","PassivePre")
+    Shine.Hook.SetupClassHook("Player","addHealth","PlayergetHealed","PassivePost")
     //Todo: Add all add functions + sendtoserver
     // add all Data Function to Hooks Shine.Hook.Add( string HookName, string UniqueID, function HookFunction [, int Priority ] )
     Shine.Hook.Add( "BuildingDropped", "AddBuildingdropped", Plugin:OnBuildDropped(newEnt, commander))
     Shine.Hook.Add( "DealedDamage", "AddDamagetoS", Plugin:OnDamageDealed(target,attacker,doer,damage,damageType))
     Shine.Hook.Add("OnFinishedBuilt","AddBuildtoStats",Plugin:OnBuildingBuilt(builder))
     Shine.Hook.Add("OnTechResearched","AddStatFTech", Plugin:OnUpgradeFinished(structure, researchId))
-    Shine.Hook.Add("OnTechStartResearch","AddStatSTech", Plugin:addUpgradeStartedToLog(researchNode, player))     
+    Shine.Hook.Add("OnTechStartResearch","AddStatSTech", Plugin:addUpgradeStartedToLog(researchNode, player))
+    Shine.Hook.Add("PlayergetHealed","OnPlayerHealed", Plugin:OnPlayerHealed())     
     return true //finished loading
 end
 
@@ -154,7 +156,13 @@ function Plugin:OnEntityKilled(Gamerules, TargetEntity, Attacker, Inflictor, Poi
     */
     Plugin:addDeathToLog(TargetEntity, Attacker, Inflictor)       
 end
-
+//Player gets heal
+function Plugin:OnPlayerHealed()
+    // player Backed Up?
+    if self:getHealth() >= 0.8 * self:getmaxHealth() then
+        Assists[self:getUserId()] = nil // drop all Assists on healed Player    
+    end
+end
 //Building Stuff
 
 //Building Dropped
@@ -428,10 +436,16 @@ function Plugin:addKill(attacker_steamId,target_steamId)
             taulu.deaths = taulu.deaths +1	
         end
     end
+    if Assists[target_steamId] ~= nill then
+        table.remove(Assists.target_steamId, attacker_steamId)
+        for i = 1,#Assists.target_steamId do
+            Plugin:addAssists(Assists.target_steamid[i],target_steamId)    
+        end
+    end
 end
 
 //To redo: assists
-function Plugin:addAssists(attacker_steamId,target_steamId, pointValue)
+function Plugin:addAssists(attacker_steamId,target_steamId)
     for key,taulu in pairs(Plugin.Players) do
         if taulu["steamId"] == target_steamId then
             for k,d in pairs(taulu.damageTaken) do	
@@ -442,7 +456,8 @@ function Plugin:addAssists(attacker_steamId,target_steamId, pointValue)
                         local player = client:GetControllingPlayer()
                         
                         if player then
-                            player:AddAssist() //RBPSplayer entity should update 1 second later automatically
+                            local pointValue = Plugin:getPlayerClientBySteamId(target_steamId):GetControllingPlayer:GetCost()
+                            // player:AddAssist() //RBPSplayer entity should update 1 second later automatically
                             player:AddScore(pointValue)
                         end
                     end
@@ -756,24 +771,23 @@ local amount = 0
 end
 
 function Plugin:getPlayerClientBySteamId(steamId)
-if not steamId then return nil end
-    
-        for list, victim in ientitylist(Shared.GetEntitiesWithClassname("Player")) do
+    if not steamId then return nil end
         
-local client = Server.GetOwner(victim)
-if client and client:GetUserId() then
-
-if client:GetUserId() == tonumber(steamId) and client:GetIsVirtual() == false then	
-return client	
-end
-end
+            for list, victim in ientitylist(Shared.GetEntitiesWithClassname("Player")) do
             
-        end
-        
-        return nil
-                        
-end
+    local client = Server.GetOwner(victim)
+    if client and client:GetUserId() then
 
+    if client:GetUserId() == tonumber(steamId) and client:GetIsVirtual() == false then	
+    return client	
+    end
+    end
+                
+            end
+            
+            return nil
+                            
+end
 
 function Plugin:getPlayerByClientId(client)
     if client == nil then return end
@@ -1088,7 +1102,8 @@ function Plugin:addHitToLog(target, attacker, doer, damage, damageType)
         Plugin:weaponsAddHit(RBPSplayer, doer:GetMapName(), damage)
         
         Plugin:playerAddDamageTaken(RBPSplayer.steamId,RBPStargetPlayer.steamId)
-        
+        // Add Attacker as possible Assist
+        table.insert( Assists[hit.target_steamId] , hit.attacker_steamId)
         
     else //target is a structure
         local structureOrigin = target:GetOrigin()
