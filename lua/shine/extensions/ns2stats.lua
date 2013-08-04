@@ -15,13 +15,13 @@ Plugin.HasConfig = true
 Plugin.DefaultConfig =
 {
     Statsonline = true // Upload stats?
-    WebsiteUrl = "http://ns2stats.org" //this is url which is shown in player private messages, so its for advertising
-    WebsiteDataUrl = "http://ns2stats.org/api/sendlog" //this is url where posted data is send and where it is parsed into database
-    WebsiteStatusUrl="http://ns2stats.org/api/sendstatus" //this is url where posted data is send on status sends
-    WebsiteApiUrl = "http://ns2stats.org/api"
-    Assists = true // Track assists?
-    Awards = true //show award (todo)
-    ServerKey = ""   
+    WebsiteUrl = "http://ns2stats.org", //this is url which is shown in player private messages, so its for advertising
+    WebsiteDataUrl = "http://ns2stats.org/api/sendlog", //this is url where posted data is send and where it is parsed into database
+    WebsiteStatusUrl="http://ns2stats.org/api/sendstatus", //this is url where posted data is send on status sends
+    WebsiteApiUrl = "http://ns2stats.org/api",
+    Assists = true, // Track assists?
+    Awards = true, //show award (todo)
+    ServerKey = "",   
 }
 
 Plugin.CheckConfig = true
