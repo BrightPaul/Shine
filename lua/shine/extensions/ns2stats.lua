@@ -26,12 +26,33 @@ function Plugin:Initialise()
     self.enabled = true
     //key move later to config
     if RBPSadvancedConfig.key == "" then
-        Shared.SendHTTPRequest(RBPS.websiteUrl .. "/api/generateKey/?s=7g94389u3r89wujj3r892jhr9fwj", "GET",
-            function(response) RBPS:acceptKey(response) end)
+        Shared.SendHTTPRequest(self.websiteUrl .. "/api/generateKey/?s=7g94389u3r89wujj3r892jhr9fwj", "GET",
+            function(response) Plugin:acceptKey(response) end)
     end
     
     //Create Commands
-    
+    local ShowPStats = Shine:RegisterCommand( "sh_showplayerstats", {"showplayerstats","showstats"}, Plugin:ShowPlayerStats,true,true )
+    ShowPStats:AddParam{ Type = "clients")
+    ShowPStats:AddParam{ Type = "string",Optimal = true ,TakeRestOfLine = true,Default ="", MaxLength = kMaxChatLength)
+    ShowPStats:Help("Shows stats of given <player> or if no given <player> from yourself")
+    local ShowSStats = Shine:RegisterCommand( "sh_showserverstats", "showserverstats", Plugin:ShowServerStats,true,true)
+    ShowSStats:AddParam{ Type = "clients")
+    ShowSStats:Help("Shows server stats")
+    local Verify = Shine:RegisterCommand( "sh_verify", {"verifystats","verify"},Plugin:SetAdminAtNS2Stats)
+    Verify:AddParam{ Type = "clients")
+    Verify:Help ("Sets yourself as serveradmin at " + self.websiteUrl)
+    //Votemenu
+    Shine.VoteMenu:AddPage( "Stats", function( self )
+    self:AddSideButton( "Show my Stats", function()
+        Shared.ConsoleCommand("sh_showplayerstats")
+    end )
+    self:AddSideButton( "Show Server Stats", function()
+        Shared.ConsoleCommand("sh_showserverstats")
+    end )
+    self:AddTopButton( "Back", function()
+        self:SetPage( "Main" )
+    end )
+end )
     //TODO: add all Hooks here
     //Shine.Hook.SetupClassHook( string Class, string Method, string HookName, "PassivePost" )
     Shine.Hook.SetupClassHook("ConstructMixin","OnConstructionComplete","OnFinishedBuilt", "PassivPre")
@@ -311,9 +332,7 @@ function Plugin:sendData()
             last_part = RBPSlastGameFinished
         }
         
-        if RBPSdebug then
-    Notify("Resending part of data to :" .. Plugin.websiteDataUrl)
-    end	
+        
 
     Shared.SendHTTPRequest(Plugin.websiteDataUrl, "POST", params, function(response,status) Plugin:onHTTPResponseFromSend(client,"send",response,status) end)	
 
@@ -322,14 +341,7 @@ function Plugin:sendData()
     end
 
  function Plugin:onHTTPResponseFromSend(client,action,response,status)	
-        if RBPSdebug and status then
-            Notify("Status: (" .. status.. ")")
-        end
-        local message = json.decode(response)
-        if RBPSdebug then
-            Notify("Sending part of round data completed (" .. (Shared.GetSystemTime() - RBPSsendStartTime) .. " seconds)")
-        end
-        
+        local message = json.decode(response)        
         if message then
         
             if string.len(response)>0 then //if we got somedata, that means send was completed
@@ -339,10 +351,6 @@ function Plugin:sendData()
         
             if message.other then
     Plugin:messageAll(message.other)
-    end
-
-            if RBPSdebug then
-    Notify(json.encode(response))	
     end
         
     if message.error == "NOT_ENOUGH_PLAYERS" then
@@ -569,10 +577,6 @@ function Plugin:weaponsAddMiss(RBPSplayer,weapon)
 
     if foundId then
         RBPSplayer.weapons[foundId].miss = RBPSplayer.weapons[foundId].miss + 1
-        
-        if RBPSdebug then
-            Notify(json.encode(RBPSplayer.weapons[foundId]))
-        end
     else //add new weapon
         table.insert(RBPSplayer.weapons,
         {
@@ -605,10 +609,6 @@ function Plugin:weaponsAddHit(RBPSplayer,weapon, damage)
         RBPSplayer.weapons[foundId].player_hit = RBPSplayer.weapons[foundId].player_hit + 1
         RBPSplayer.weapons[foundId].player_damage = RBPSplayer.weapons[foundId].player_damage + damage
         
-        
-        if RBPSdebug then
-            Notify(json.encode(RBPSplayer.weapons[foundId]))
-        end
     else //add new weapon
         table.insert(RBPSplayer.weapons,
         {
@@ -641,10 +641,7 @@ function Plugin:weaponsAddStructureHit(RBPSplayer,weapon, damage)
     if foundId then
         RBPSplayer.weapons[foundId].structure_hit = RBPSplayer.weapons[foundId].structure_hit + 1
         RBPSplayer.weapons[foundId].structure_damage = RBPSplayer.weapons[foundId].structure_damage + damage
-        
-        if RBPSdebug then
-            Notify(json.encode(RBPSplayer.weapons[foundId]))
-        end
+
     else //add new weapon
         table.insert(RBPSplayer.weapons,
         {
@@ -768,13 +765,7 @@ end
 
 
 function Plugin:getPlayerByClientId(client)
-    if client == nil then
-            if RBPSdebug then
-                Notify("Unable to find player table using null client")
-            end
-            return
-        end
-
+    if client == nil then return end
     local steamId = client:GetUserId()
 
 
@@ -783,10 +774,6 @@ function Plugin:getPlayerByClientId(client)
             if taulu["steamId"] == steamId then return taulu end
         end	
     end
-    if RBPSdebug then
-        Notify("Unable to find player using steamId: " .. steamId)
-    end
-
     return nil
 end
 
@@ -823,41 +810,30 @@ return nil
 end
 
 function Plugin:getPlayerByClient(client)
-if client == nil then
-if RBPSdebug then
-     Notify("Unable to find player table using null client")
-     end
-    
-        return
-    end
+    if client == nil then return end
     local steamId = nil
     local name = nil
     if type(client["GetUserId"]) ~= "nil" then
-    steamId = client:GetUserId()
+        steamId = client:GetUserId()
     else
         if type(client["GetControllingPlayer"]) ~= "nil" then
                 local player = client:GetControllingPlayer()
-local name = player:GetName()
+                local name = player:GetName()
             else
                 return
         end
     end
 
-for key,taulu in pairs(Plugin.Players) do	
-if steamId then
-if taulu["steamId"] == steamId then return taulu end
-end
-        
+    for key,taulu in pairs(Plugin.Players) do	
+        if steamId then
+            if taulu["steamId"] == steamId then return taulu end
+        end
+            
         if name then
-if taulu["name"] == name then return taulu end
-end	
-end
-
-if RBPSdebug then
-Notify("Unable to find player using name")
-end
-
-return nil
+            if taulu["name"] == name then return taulu end
+    end	
+    end
+    return nil
 end
 
 
@@ -990,38 +966,6 @@ local highestTable = nil
     end
     
     return highestTable
-end
-
-
-function Plugin:processChatCommand(playerName,chatMessage)
-    Notify(chatMessage)
-    if not Server then return end
-        
-    local rp = Plugin:getPlayerByName(playerName)
-    if not rp then return end
-    
-    local client = Plugin:getPlayerClientBySteamId(rp.steamId)
-    if not client then return end
-    
-    local player = client:GetControllingPlayer()
-    if not player then return end
-    
-
-    if chatMessage == "/stuck" or chatMessage == "/unstuck" then
-        rp.unstuck = true
-        rp.unstuckCounter = 0
-        rp.lastCoords = rp.x + rp.y + rp.z //needs to be same after RBPSstuckTime seconds
-    elseif chatMessage == "ready" or chatMessage == "rdy" or chatMessage == "/ready" then
-        RBPSready(client)
-    elseif chatMessage == "not ready" or chatMessage == "notready" or chatMessage == "notrdy" or chatMessage == "/notready" then
-        RBPSnotready(client)
-    elseif chatMessage == "check" or chatMessage == "chk" then
-        local player = client:GetControllingPlayer()
-        if player then
-            Server.SendCommand(player, "check")
-        end
-    end
-
 end
 
 function Plugin:addMissToLog(attacker)
@@ -1312,22 +1256,24 @@ end
 
 //Command Methods
 //open Ingame_Browser with given Player Stats
-function Plugin:ShowPlayerStats(playerid)
+function Plugin:ShowPlayerStats(Client,Playername)
+    if Playername == "" then playerid = Client:GetUserID()
+    else 
     local url = self.websiteurl + "/player/player/" + tostring(playerid)
     Server.SendNetworkMessage( Client, "Shine_Web", { URL = url }, true )
 end
 
 //open Ingame_Browser with Server Stats
-function Plugin:ShowServerStats()
+function Plugin:ShowServerStats(Client)
         local url= self.websiteurl + "/server/server/" // + to string(self.config.serverid)
     	Server.SendNetworkMessage( Client, "Shine_Web", { URL = url }, true )
 end
 
 // set commanduser as admin at ns2stats
-function Plugin:SetAdminAtNS2Stats(playerid)
-    
-    Shared.SendHTTPRequest(RBPS.websiteUrl .. "/api/verifyServer/" .. client:GetUserId() .. "?s=479qeuehq2829&key=" .. RBPSadvancedConfig.key, "GET",
-        function(response) RBPS:onHTTPRespVerify(client,response) end) 
+function Plugin:SetAdminAtNS2Stats(Client)
+if Shine:HasAccess( Client, "sh_verify" ) then
+    Shared.SendHTTPRequest(RBPS.websiteUrl .. "/api/verifyServer/" .. Client:GetUserId() .. "?s=479qeuehq2829&key=" .. RBPSadvancedConfig.key, "GET",
+        function(response) RBPS:onHTTPRespVerify(Client,response) end) end
 end
 //Cleanup
 
