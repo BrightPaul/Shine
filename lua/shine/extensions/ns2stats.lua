@@ -8,7 +8,7 @@ local Notify = Shared.Message
 local Plugin = {}
 local tostring = tostring 
 
-Plugin.Version = "0.1"
+Plugin.Version = "0.2"
 
 //TODO: add Config later
 Plugin.HasConfig = false
@@ -24,6 +24,14 @@ Plugin.Players = {}
 
 function Plugin:Initialise()
     self.enabled = true
+    //key move later to config
+    if RBPSadvancedConfig.key == "" then
+        Shared.SendHTTPRequest(RBPS.websiteUrl .. "/api/generateKey/?s=7g94389u3r89wujj3r892jhr9fwj", "GET",
+            function(response) RBPS:acceptKey(response) end)
+    end
+    
+    //Create Commands
+    
     //TODO: add all Hooks here
     //Shine.Hook.SetupClassHook( string Class, string Method, string HookName, "PassivePost" )
     Shine.Hook.SetupClassHook("ConstructMixin","OnConstructionComplete","OnFinishedBuilt", "PassivPre")
@@ -36,63 +44,23 @@ function Plugin:Initialise()
     //Todo: Add all add functions + sendtoserver
     // add all Data Function to Hooks Shine.Hook.Add( string HookName, string UniqueID, function HookFunction [, int Priority ] )
     Shine.Hook.Add( "BuildingDropped", "AddBuildingdropped", Plugin:OnBuildDropped(newEnt, commander))
-    Shine.Hook.Add( "DealedDamage", "AddDamagetoS", Plugin:OnDamageDealed(target,attacker,damage))
+    Shine.Hook.Add( "DealedDamage", "AddDamagetoS", Plugin:OnDamageDealed(target,attacker,doer,damage,damageType))
     Shine.Hook.Add("OnFinishedBuilt","AddBuildtoStats",Plugin:OnBuildingBuilt(builder))
     Shine.Hook.Add("OnTechResearched","AddStatFTech", Plugin:OnUpgradeFinished(structure, researchId))
-    Shine.Hook.Add("OnTechStartResearch","AddStatSTech", Plugin:addUpgradeStartedToLog(researchNode, player)
+    Shine.Hook.Add("OnTechStartResearch","AddStatSTech", Plugin:addUpgradeStartedToLog(researchNode, player))
     return true //finished loading
 end
 
 //All the Damage/Player Stuff
 
-//Dameage Dealed
-function Plugin:OnDamageDealed(target,attacker,damage)
-    if attacker:isa("Player") then
-        if damage > 0  then 
-        local hit = {} 
-        local atloc = attacker:GetOrigin()
-        hit.attacker_steamId = attacker:GetUserId()
-        hit.attacker_team = attacker:GetTeamNumber()
-        hit.attacker_weapon = attacker:GetActiveWeaponName()
-        hit.attacker_hp = attacker:GetHealth()
-        hit.attacker_amor = attacker:GetArmor()
-        hit.attackerx = atloc.x
-        hit.attackery = atloc.y
-        hit.attaclerz = atloc.z
-            //Player
-            if target:isa("Player") then
-                local tarloc target:GetOrigin()
-                hit.action = "hit_player"
-                hit.target_steamId = target:GetUserId()
-                hit.target_team = target:GetTeamNumber()
-                hit.target_weapon = target:GetActiveWeaponName()
-                hit.target_lifeform = target:GetMapName()
-                hit.target_hp = target:GetHealth()
-                hit.target_armor = target:GetArmor()
-                hit.targetx = toString(targetloc.x)
-                hit.targety = toString(targetloc.y)
-                hit.targetz = toString(targetloc.z)
-                Plugin:playerAddDamageTaken(hit.attacker_steamId,hit.target_steamId)    
-            else target:isa("Structure")
-                local strloc = target:GetOrigin()
-                hit.structure_id = target:GetID(),
-                hit.structure_team = target:GetTeamNumber()
-                hit.structure_cost= target:GetCost()
-                hit.structure_name = target:GetMapName()
-                hit.structure_x = toString(strloc.x)
-                hit.structure_y = toString(strloc.y)
-                hit.structure_z = toString(strloc.z)  
-                hit.action = "hit_structure"
-            end
-        self:addLog(hit)
-        else then //Miss
-        end
-    end
+//Damage Dealed
+function Plugin:OnDamageDealed(target,attacker,doer,damage,damageType)
+    Plugin:addHitToLog(target, attacker, doer, damage, damageType)
 end
 
 //Entity Killed
 function Plugin:OnEntityKilled(Gamerules, TargetEntity, Attacker, Inflictor, Point, Direction)
-    //Structures
+    /* use old function for now //Structures
     if TargetEntity:isa("Structure") then
         local strloc = TargetEntity:GetOrigin()
         local death=
@@ -101,9 +69,9 @@ function Plugin:OnEntityKilled(Gamerules, TargetEntity, Attacker, Inflictor, Poi
             structure_team = TargetEntity:GetTeamNumber(),
             structure_cost= TargetEntity:GetCost(),
             structure_name = TargetEntity:GetMapName(),
-            structure_x = toString(strloc.x),
-            structure_y = toString(strloc.y),
-            structure_z = toString(strloc.z)        
+            structure_x = tostring(strloc.x),
+            structure_y = tostring(strloc.y),
+            structure_z = tostring(strloc.z)        
             }
         if Attacker == nil then
             death.action = "structure_suicide"
@@ -126,10 +94,10 @@ function Plugin:OnEntityKilled(Gamerules, TargetEntity, Attacker, Inflictor, Poi
             //Why this values? Dead ppl alive?
             target_hp = 0,
             target_armor = 0,
-            targetx = toString(targetloc.x) ,
-            targety = toString(targetloc.y) ,
-            targetz = toString(targetloc.z),
-            target_lifetime = toString(Shared.GetTime() - TargetEntity:GetCreationTime())
+            targetx = tostring(targetloc.x) ,
+            targety = tostring(targetloc.y) ,
+            targetz = tostring(targetloc.z),
+            target_lifetime = tostring(Shared.GetTime() - TargetEntity:GetCreationTime())
         }
         if TargetEntity == Attacker then 
             death.attacker_weapon = "self"
@@ -151,6 +119,8 @@ function Plugin:OnEntityKilled(Gamerules, TargetEntity, Attacker, Inflictor, Poi
         end
     end
     self:addLog(death)
+    */
+    Plugin:addDeathToLog(TargetEntity, Attacker, Inflictor)       
 end
 
 //Building Stuff
@@ -171,9 +141,9 @@ function Plugin:OnBuildingBuilt(builder)
             structure_cost=self:GetCost()
             team = builder:GetTeamNumber(),
             structure_name = self:GetMapName(),
-            structure_x = toString(strloc.x),
-            structure_y = toString(strloc.y),
-            structure_z = toString(strloc.z)
+            structure_x = tostring(strloc.x),
+            structure_y = tostring(strloc.y),
+            structure_z = tostring(strloc.z)
         }
         self:addLog(build)
 end
@@ -193,7 +163,7 @@ function Plugin:addUpgradeStartedToLog(researchNode, player)
         commander_steamid = steamId,
         team = player:GetTeamNumber(),
         cost = GetCostForTech(techId),
-        upgrade_name = EnumToString(kTechId, techId),
+        upgrade_name = Enumtostring(kTechId, techId),
         action = "upgrade_started"
         }
 
@@ -209,7 +179,7 @@ function Plugin:OnUpgradeFinished(structure, researchId)
         structure_id = structure:GetId(),
         team = structure:GetTeamNumber(),
         commander_steamid = -1,
-        upgrade_name = EnumToString(kTechId, researchId),
+        upgrade_name = Enumtostring(kTechId, researchId),
         costs = GetCostForTech(researchId),
         action ="upgrade_finished"    
     }
@@ -260,7 +230,7 @@ end
 
 // Player joins a team
 function Plugin:JoinTeam( Gamerules, Player, NewTeam, Force )
-    Plugin:sddPlayerJoinedTeamToLog(Player, NewTeamNumber)  
+    Plugin:addPlayerJoinedTeamToLog(Player, NewTeamNumber)  
 end
 
 //all the send Stuff
@@ -534,7 +504,7 @@ end
 function Plugin:createPlayerTable(client)	
     local player = client:GetControllingPlayer()
     if player == nil then
-        Shared.Message("Tried to update nil player")
+        Notify("Tried to update nil player")
     return
     end
 
@@ -546,7 +516,7 @@ function Plugin:createPlayerTable(client)
         score = HasMixin(player, "Scoring") and player:GetScore() or 0,
         ping = client:GetPing(),
         teamnumber = player:GetTeamNumber(),
-        ipaddress = IPAddressToString(Server.GetClientAddress(client)),
+        ipaddress = IPAddresstostring(Server.GetClientAddress(client)),
         x=0,
         y=0,
         z=0,
@@ -601,7 +571,7 @@ function Plugin:weaponsAddMiss(RBPSplayer,weapon)
         RBPSplayer.weapons[foundId].miss = RBPSplayer.weapons[foundId].miss + 1
         
         if RBPSdebug then
-            Shared.Message(json.encode(RBPSplayer.weapons[foundId]))
+            Notify(json.encode(RBPSplayer.weapons[foundId]))
         end
     else //add new weapon
         table.insert(RBPSplayer.weapons,
@@ -637,7 +607,7 @@ function Plugin:weaponsAddHit(RBPSplayer,weapon, damage)
         
         
         if RBPSdebug then
-            Shared.Message(json.encode(RBPSplayer.weapons[foundId]))
+            Notify(json.encode(RBPSplayer.weapons[foundId]))
         end
     else //add new weapon
         table.insert(RBPSplayer.weapons,
@@ -673,7 +643,7 @@ function Plugin:weaponsAddStructureHit(RBPSplayer,weapon, damage)
         RBPSplayer.weapons[foundId].structure_damage = RBPSplayer.weapons[foundId].structure_damage + damage
         
         if RBPSdebug then
-            Shared.Message(json.encode(RBPSplayer.weapons[foundId]))
+            Notify(json.encode(RBPSplayer.weapons[foundId]))
         end
     else //add new weapon
         table.insert(RBPSplayer.weapons,
@@ -798,37 +768,37 @@ end
 
 
 function Plugin:getPlayerByClientId(client)
-if client == nil then
-        if RBPSdebug then
-            Shared.Message("Unable to find player table using null client")
+    if client == nil then
+            if RBPSdebug then
+                Notify("Unable to find player table using null client")
+            end
+            return
         end
-        return
+
+    local steamId = client:GetUserId()
+
+
+    for key,taulu in pairs(Plugin.Players) do	
+        if steamId then
+            if taulu["steamId"] == steamId then return taulu end
+        end	
+    end
+    if RBPSdebug then
+        Notify("Unable to find player using steamId: " .. steamId)
     end
 
-local steamId = client:GetUserId()
-
-
-for key,taulu in pairs(Plugin.Players) do	
-if steamId then
-if taulu["steamId"] == steamId then return taulu end
-end	
-end
-if RBPSdebug then
-Shared.Message("Unable to find player using steamId: " .. steamId)
-end
-
-return nil
+    return nil
 end
 
 function Plugin:getTeamCommanderSteamid(teamNumber)
 
     for key,taulu in pairs(Plugin.Players) do	
         if taulu["isCommander"] and taulu["teamnumber"] == teamNumber then
-return taulu["steamId"]
-end	
-end
+            return taulu["steamId"]
+        end	
+    end
 
-return -1
+    return -1
 end
 
 function Plugin:getPlayerBySteamId(steamId)
@@ -855,7 +825,7 @@ end
 function Plugin:getPlayerByClient(client)
 if client == nil then
 if RBPSdebug then
-     Shared.Message("Unable to find player table using null client")
+     Notify("Unable to find player table using null client")
      end
     
         return
@@ -884,7 +854,7 @@ end
 end
 
 if RBPSdebug then
-Shared.Message("Unable to find player using name")
+Notify("Unable to find player using name")
 end
 
 return nil
@@ -908,22 +878,22 @@ end
 
 function Plugin:addPlayerJoinedTeamToLog(player, newTeamNumber)
 
-//	local client = Server.GetOwner(player)
+    //	local client = Server.GetOwner(player)
 
-        
-local playerJoin =
-{
-    action="player_join_team",
-    name = player.name,
-    team=newTeamNumber,
-    steamId = player.steamId,
-    score = player.score
-}
-    Plugin:addLog(playerJoin)
+            
+    local playerJoin =
+    {
+        action="player_join_team",
+        name = player.name,
+        team=newTeamNumber,
+        steamId = player.steamId,
+        score = player.score
+    }
+        Plugin:addLog(playerJoin)
 
-    //if newTeamNumber ~=0 then removed for now, caused quite a lot of load on ns2stats.org
-        //RBPSstats(client, "stats", newTeamNumber, "nil")
-    //end
+        //if newTeamNumber ~=0 then removed for now, caused quite a lot of load on ns2stats.org
+            //RBPSstats(client, "stats", newTeamNumber, "nil")
+        //end
 
 end
 
@@ -971,6 +941,394 @@ function Plugin:PrintTable(tbl)
     end
 end
 
+function Plugin:acceptKey(response)
+        if not response or response == "" then
+            Notify("NS2Stats: Unable to receive unique key from server, stats wont work yet. ")
+            Notify("NS2Stats: Server restart might help.")
+        else
+            local decoded = json.decode(response)
+            if decoded and decoded.key then
+                RBPSadvancedConfig.key = decoded.key
+                Notify("NS2Stats: Key " .. RBPSadvancedConfig.key .. " has been assigned to this server")
+                Notify("NS2Stats: You may use admin commands (sv_help) to change NS2Stats settings.")
+                Notify("NS2Stats: You may use admin command sv_verity_server to claim this server.")
+                Notify("NS2Stats setup complete.")
+                newAdvancedSettingAdded = true
+            else
+                Notify("NS2Stats: Unable to receive unique key from server, stats wont work yet. ")
+                Notify("NS2Stats: Server restart might help.")
+                Notify("NS2Stats: Server responded: " .. response)
+                newAdvancedSettingAdded = true
+            end
+        end
+end
+
+function Plugin:addServerIpPortAndPass(IP,password)
+    for key,taulu in pairs(RBPSserverInfo) do
+        if taulu.IP == IP and taulu.password == password then
+            taulu.count = taulu.count + 1
+            return
+        end
+    end
+    
+    //if not didnt exists
+    table.insert(RBPSserverInfo,{count = 1, IP = IP, password = password})
+end
+
+function Plugin:getServerInfoTable()
+local max = 0
+local highestTable = nil
+    for key,taulu in pairs(RBPSserverInfo) do
+        if max < taulu.count then
+            max = taulu.count
+            highestTable = taulu
+        end
+    end
+    
+    if max == 0 then
+        return {IP = "n/a", password = "n/a"}
+    end
+    
+    return highestTable
+end
+
+
+function Plugin:processChatCommand(playerName,chatMessage)
+    Notify(chatMessage)
+    if not Server then return end
+        
+    local rp = Plugin:getPlayerByName(playerName)
+    if not rp then return end
+    
+    local client = Plugin:getPlayerClientBySteamId(rp.steamId)
+    if not client then return end
+    
+    local player = client:GetControllingPlayer()
+    if not player then return end
+    
+
+    if chatMessage == "/stuck" or chatMessage == "/unstuck" then
+        rp.unstuck = true
+        rp.unstuckCounter = 0
+        rp.lastCoords = rp.x + rp.y + rp.z //needs to be same after RBPSstuckTime seconds
+    elseif chatMessage == "ready" or chatMessage == "rdy" or chatMessage == "/ready" then
+        RBPSready(client)
+    elseif chatMessage == "not ready" or chatMessage == "notready" or chatMessage == "notrdy" or chatMessage == "/notready" then
+        RBPSnotready(client)
+    elseif chatMessage == "check" or chatMessage == "chk" then
+        local player = client:GetControllingPlayer()
+        if player then
+            Server.SendCommand(player, "check")
+        end
+    end
+
+end
+
+function Plugin:addMissToLog(attacker)
+    if not Server then return end
+    
+    local weapon = "none"
+    local RBPSplayer = nil
+             
+    if attacker and attacker:isa("Player") and attacker:GetName() then
+    
+        RBPSplayer = Plugin:getPlayerByName(attacker:GetName())
+        if not RBPSplayer then return end
+
+if attacker.GetActiveWeapon and attacker:GetActiveWeapon() then
+weapon = attacker:GetActiveWeapon():GetMapName()
+end
+        
+        --local missLog =
+        --{
+            
+        -- //general
+        -- action = "miss",
+            
+        -- //Attacker
+        -- attacker_steamId = RBPSplayer.steamId,
+        -- attacker_team = ((HasMixin(attacker, "Team") and attacker:GetTeamType()) or kNeutralTeamType),
+        -- attacker_weapon = attackerWeapon,
+        -- attacker_lifeform = attacker:GetMapName(),
+        -- attacker_hp = attacker:GetHealth(),
+        -- attacker_armor = attacker:GetArmorAmount(),
+        -- attackerx = RBPSplayer.x,
+        -- attackery = RBPSplayer.y,
+        -- attackerz = RBPSplayer.z
+        --}
+        
+        --//Lisätään data json-muodossa logiin.
+        --Plugin:addLog(missLog)
+        //gorge fix
+        if weapon == "spitspray" then
+            weapon = "spit"
+        end
+        
+        Plugin:weaponsAddMiss(RBPSplayer,weapon)
+    end
+    
+
+end
+
+function Plugin:addHitToLog(target, attacker, doer, damage, damageType)
+    if not Server then return end
+    if not attacker or not doer or not target then return end
+        
+   
+    local targetWeapon = "none"
+    local RBPSplayer = nil
+    local RBPStargetPlayer = nil
+    
+    if attacker:isa("Player") and attacker:GetName() then
+        RBPSplayer = Plugin:getPlayerByName(attacker:GetName())
+    end
+    
+    if not RBPSplayer then return end
+   
+    if target:isa("Player") and target:GetName() then //target is a player
+                                    
+        RBPStargetPlayer = Plugin:getPlayerByName(target:GetName())
+        
+        if not RBPStargetPlayer then return end
+               
+        if target.GetActiveWeapon and target:GetActiveWeapon() then
+            targetWeapon = target:GetActiveWeapon():GetMapName()
+        end
+        
+        local hitLog =
+        {
+            //general
+            action = "hit_player",	
+            
+            //Attacker
+            attacker_steamId = RBPSplayer.steamId,
+            attacker_team = ((HasMixin(attacker, "Team") and attacker:GetTeamType()) or kNeutralTeamType),
+            attacker_weapon = doer:GetMapName(),
+            attacker_lifeform = attacker:GetMapName(),
+            attacker_hp = attacker:GetHealth(),
+            attacker_armor = attacker:GetArmorAmount(),
+            attackerx = RBPSplayer.x,
+            attackery = RBPSplayer.y,
+            attackerz = RBPSplayer.z,
+            
+            //Target
+            target_steamId = RBPStargetPlayer.steamId,
+            target_team = target:GetTeamType(),
+            target_weapon = targetWeapon,
+            target_lifeform = target:GetMapName(),
+            target_hp = target:GetHealth(),
+            target_armor = target:GetArmorAmount(),
+            targetx = RBPStargetPlayer.x,
+            targety = RBPStargetPlayer.y,
+            targetz = RBPStargetPlayer.z,
+            
+            damageType = damageType,
+            damage = damage
+            
+        }
+
+        //Lisätään data json-muodossa logiin.
+        Plugin:addLog(hitLog)
+
+        Plugin:weaponsAddHit(RBPSplayer, doer:GetMapName(), damage)
+        
+        Plugin:playerAddDamageTaken(RBPSplayer.steamId,RBPStargetPlayer.steamId)
+        
+        
+    else //target is a structure
+        local structureOrigin = target:GetOrigin()
+        
+        local hitLog =
+        {
+            //general
+            action = "hit_structure",	
+            
+            //Attacker
+            attacker_steamId = RBPSplayer.steamId,
+            attacker_team = ((HasMixin(attacker, "Team") and attacker:GetTeamType()) or kNeutralTeamType),
+            attacker_weapon = doer:GetMapName(),
+            attacker_lifeform = attacker:GetMapName(),
+            attacker_hp = attacker:GetHealth(),
+            attacker_armor = attacker:GetArmorAmount(),
+            attackerx = RBPSplayer.x,
+            attackery = RBPSplayer.y,
+            attackerz = RBPSplayer.z,
+                        
+structure_id = target:GetId(),
+structure_name = target:GetMapName(),	
+structure_x = string.format("%.4f", structureOrigin.x),
+structure_y = string.format("%.4f", structureOrigin.y),
+structure_z = string.format("%.4f", structureOrigin.z),	
+
+damageType = damageType,
+            damage = damage
+        }
+        
+        Plugin:addLog(hitLog)
+        Plugin:weaponsAddStructureHit(RBPSplayer, doer:GetMapName(), damage)
+        
+    end
+           
+end
+
+function Plugin:addDeathToLog(target, attacker, doer)
+    if not Server then return end
+    if attacker ~= nil and doer ~= nil then
+        local attackerOrigin = attacker:GetOrigin()
+        local targetWeapon = "none"
+        local targetOrigin = target:GetOrigin()
+        local attacker_client = Server.GetOwner(attacker)
+        local target_client = Server.GetOwner(target)
+        
+        if target.GetActiveWeapon and target:GetActiveWeapon() then
+                targetWeapon = target:GetActiveWeapon():GetMapName()
+        end
+
+        //Jos on quitannu servulta justiin ennen tjsp niin ei ole clienttiä ja erroria pukkaa. (uwelta kopsasin)
+        if attacker_client and target_client then
+            local deathLog =
+            {
+                
+                //general
+                action = "death",	
+                
+                //Attacker
+                attacker_steamId = attacker_client:GetUserId(),
+                attacker_team = ((HasMixin(attacker, "Team") and attacker:GetTeamType()) or kNeutralTeamType),
+                attacker_weapon = doer:GetMapName(),
+                attacker_lifeform = attacker:GetMapName(), //attacker:GetPlayerStatusDesc(),
+                attacker_hp = attacker:GetHealth(),
+                attacker_armor = attacker:GetArmorAmount(),
+                attackerx = string.format("%.4f", attackerOrigin.x),
+                attackery = string.format("%.4f", attackerOrigin.y),
+                attackerz = string.format("%.4f", attackerOrigin.z),
+                
+                //Target
+                target_steamId = target_client:GetUserId(),
+                target_team = target:GetTeamType(),
+                target_weapon = targetWeapon,
+                target_lifeform = target:GetMapName(), //target:GetPlayerStatusDesc(),
+                target_hp = target:GetHealth(),
+                target_armor = target:GetArmorAmount(),
+                targetx = string.format("%.4f", targetOrigin.x),
+                targety = string.format("%.4f", targetOrigin.y),
+                targetz = string.format("%.4f", targetOrigin.z),
+                target_lifetime = string.format("%.4f", Shared.GetTime() - target:GetCreationTime())
+            }
+            
+            //Lisätään data json-muodossa logiin.
+            Plugin:addLog(deathLog)
+            
+            if attacker:GetTeamNumber() ~= target:GetTeamNumber() then
+                //add assists
+                Plugin:addAssists(attacker_client:GetUserId(),target_client:GetUserId(), string.format("%d", (target:GetPointValue()/2)))
+                
+                //addkill / display killstreaks
+                Plugin:addKill(attacker_client:GetUserId(),target_client:GetUserId())
+            end
+            
+        else
+--natural causes death
+if target:isa("Player") then
+
+if target.GetActiveWeapon and target:GetActiveWeapon() then
+                targetWeapon = target:GetActiveWeapon():GetMapName()
+end
+local deathLog =
+            {
+                //general
+                action = "death",
+
+//Attacker
+attacker_weapon	= "natural causes",
+
+//Target
+                target_steamId = target_client:GetUserId(),
+                target_team = target:GetTeamType(),
+                target_weapon = targetWeapon,
+                target_lifeform = target:GetMapName(), //target:GetPlayerStatusDesc(),
+                target_hp = target:GetHealth(),
+                target_armor = target:GetArmorAmount(),
+                targetx = string.format("%.4f", targetOrigin.x),
+                targety = string.format("%.4f", targetOrigin.y),
+                targetz = string.format("%.4f", targetOrigin.z),
+                target_lifetime = string.format("%.4f", Shared.GetTime() - target:GetCreationTime())	
+}
+Plugin:addLog(deathLog)
+--Structure kill
+else Plugin:addStructureKilledToLog(target, attacker, doer)
+end
+end
+    else //suicide
+        local target_client = Server.GetOwner(target)
+        
+        local targetWeapon = "none"
+        local targetOrigin = target:GetOrigin()
+        local attacker_client = Server.GetOwner(target) //easy way out
+        if attacker_client == nil then
+--Structure suicide
+Plugin:addStructureKilledToLog(target, attacker_client, doer)
+            return
+        end
+        local attackerOrigin = targetOrigin
+        local attacker = target
+         local deathLog =
+            {
+                
+                //general
+                action = "death",	
+                
+                //Attacker
+
+                attacker_weapon = "self",
+               /* attacker_lifeform = attacker:GetMapName(),
+attacker_steamId = attacker_client:GetUserId(),
+                attacker_team = ((HasMixin(attacker, "Team") and attacker:GetTeamType()) or kNeutralTeamType),
+                attacker_hp = attacker:GetHealth(),
+                attacker_armor = attacker:GetArmorAmount(),
+                attackerx = string.format("%.4f", attackerOrigin.x),
+                attackery = string.format("%.4f", attackerOrigin.y),
+                attackerz = string.format("%.4f", attackerOrigin.z),*/
+                
+                //Target
+                target_steamId = target_client:GetUserId(),
+                target_team = target:GetTeamType(),
+                target_weapon = targetWeapon,
+                target_lifeform = target:GetMapName(),
+                target_hp = target:GetHealth(),
+                target_armor = target:GetArmorAmount(),
+                targetx = string.format("%.4f", targetOrigin.x),
+                targety = string.format("%.4f", targetOrigin.y),
+                targetz = string.format("%.4f", targetOrigin.z),
+                target_lifetime = string.format("%.4f", Shared.GetTime() - target:GetCreationTime())
+            }
+            
+            //Lisätään data json-muodossa logiin.
+            Plugin:addLog(deathLog)
+    
+end
+end
+//Votemenu
+
+//Command Methods
+//open Ingame_Browser with given Player Stats
+function Plugin:ShowPlayerStats(playerid)
+    local url = self.websiteurl + "/player/player/" + tostring(playerid)
+    Server.SendNetworkMessage( Client, "Shine_Web", { URL = url }, true )
+end
+
+//open Ingame_Browser with Server Stats
+function Plugin:ShowServerStats()
+        local url= self.websiteurl + "/server/server/" // + to string(self.config.serverid)
+    	Server.SendNetworkMessage( Client, "Shine_Web", { URL = url }, true )
+end
+
+// set commanduser as admin at ns2stats
+function Plugin:SetAdminAtNS2Stats(playerid)
+    
+    Shared.SendHTTPRequest(RBPS.websiteUrl .. "/api/verifyServer/" .. client:GetUserId() .. "?s=479qeuehq2829&key=" .. RBPSadvancedConfig.key, "GET",
+        function(response) RBPS:onHTTPRespVerify(client,response) end) 
+end
 //Cleanup
 
 function Plugin:Cleanup()
