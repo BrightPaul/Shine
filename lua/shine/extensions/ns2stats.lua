@@ -21,7 +21,8 @@ Plugin.DefaultConfig =
     WebsiteApiUrl = "http://ns2stats.org/api",
     Assists = true, // Track assists?
     Awards = true, //show award (todo)
-    ServerKey = "",   
+    ServerKey = "",
+    IngameBrowser = true // use ingame browser or Steamoverlay   
 }
 
 Plugin.CheckConfig = true
@@ -1269,13 +1270,15 @@ function Plugin:ShowPlayerStats(Client,Playername)
     if Playername == "" then playerid = Client:GetUserID()
     else 
     local url = self.config.websiteurl + "/player/player/" + tostring(playerid)
-    Server.SendNetworkMessage( Client, "Shine_Web", { URL = url }, true )
+    if self.config.IngameBrowser then Server.SendNetworkMessage( Client, "Shine_Web", { URL = url }, true )
+    else Client.ShowWebpage(url) end
 end
 
 //open Ingame_Browser with Server Stats
 function Plugin:ShowServerStats(Client)
         local url= self.config.websiteurl + "/server/server/" // + to string(self.config.serverid)
-    	Server.SendNetworkMessage( Client, "Shine_Web", { URL = url }, true )
+    	if self.config.IngameBrowser then Server.SendNetworkMessage( Client, "Shine_Web", { URL = url }, true )
+    	else Client.ShowWebpage(url) end
 end
 
 // set commanduser as admin at ns2stats
