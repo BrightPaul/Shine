@@ -15,7 +15,7 @@ Plugin.HasConfig = true
 Plugin.ConfigName = "Ns2Stats.json"
 Plugin.DefaultConfig =
 {
-    Statsonline = true // Upload stats?
+    Statsonline = true, // Upload stats?
     WebsiteUrl = "http://ns2stats.org", //this is url which is shown in player private messages, so its for advertising
     WebsiteDataUrl = "http://ns2stats.org/api/sendlog", //this is url where posted data is send and where it is parsed into database
     WebsiteStatusUrl="http://ns2stats.org/api/sendstatus", //this is url where posted data is send on status sends
@@ -29,6 +29,7 @@ Plugin.DefaultConfig =
 
 Plugin.CheckConfig = true
 
+Plugin.Commands = {}
 
 //Score datatable 
 local Assists={}
@@ -53,18 +54,6 @@ function Plugin:Initialise()
     Verify:AddParam{ Type = "clients")
     Verify:Help ("Sets yourself as serveradmin at " + self.config.websiteUrl)
     
-    //Votemenu
-    Shine.VoteMenu:AddPage( "Stats", function( self )
-    self:AddSideButton( "Show my Stats", function()
-        Shared.ConsoleCommand("sh_showplayerstats")
-    end )
-    self:AddSideButton( "Show Server Stats", function()
-        Shared.ConsoleCommand("sh_showserverstats")
-    end )
-    self:AddTopButton( "Back", function()
-        self:SetPage( "Main" )
-    end )
-end )
     //TODO: add all Hooks here
     //Shine.Hook.SetupClassHook( string Class, string Method, string HookName, "PassivePost" )
     Shine.Hook.SetupClassHook("ConstructMixin","OnConstructionComplete","OnFinishedBuilt", "PassivPre")
@@ -1332,5 +1321,3 @@ function Plugin:Cleanup()
 
     self.Enabled = false
 end
-
-Shine:RegisterExtension( "ns2stats", Plugin )
