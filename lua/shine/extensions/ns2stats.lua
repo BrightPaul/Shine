@@ -23,7 +23,8 @@ Plugin.DefaultConfig =
     Assists = true, // Track assists?
     Awards = true, //show award (todo)
     ServerKey = "",
-    IngameBrowser = true // use ingame browser or Steamoverlay   
+    IngameBrowser = true // use ingame browser or Steamoverlay 
+    Tags = {} //Tags added to log  
 }
 
 Plugin.CheckConfig = true
@@ -223,7 +224,7 @@ function Plugin:OnUpgradeFinished(structure, researchId)
         costs = GetCostForTech(researchId),
         action ="upgrade_finished"    
     }
-    self:addLog(upgade)
+    self:addLog(upgrade)
 end
 // Game events
 
@@ -240,7 +241,14 @@ end
 
 //Round ends
 function Plugin:EndGame()
+    local allPlayers = Shared.GetEntitiesWithClassname("Player")
+    //to get last kills
+    for index, fromPlayer in ientitylist(allPlayers) do
+        local client = Server.GetOwner(fromPlayer)
+        Plugin:UpdatePlayerInTable(client)	
+    end 
     Plugin:addPlayersToLog(1)
+    Plugin:AddServerInfos()
     if self.config.Statsonline then self:sendData() end //senddata also clears log
 end
 
@@ -250,8 +258,8 @@ function Plugin:ClientConnect( Client )
     if Client:GetIsVirtual() then return end
     local Player = Client:GetControllingPlayer()
     if not Player then return end
-    Plugin:addPlayerToTable(client)
-    Plugin:setConnected(client)
+    Plugin:addPlayerToTable(Client)
+    Plugin:setConnected(Client)
 end
 
 //PlayerDisconnect
@@ -270,14 +278,16 @@ end
 
 // Player joins a team
 function Plugin:JoinTeam( Gamerules, Player, NewTeam, Force )
-    Plugin:addPlayerJoinedTeamToLog(Player, NewTeamNumber)  
+    Plugin:addPlayerJoinedTeamToLog(Player, NewTeam)  
 end
 
 //all the send Stuff
-
+//values needed by NS2Stats
 self.logInit = false
 RBPSlog = ""
 RBPSlogPartNumber = 1
+RBPSsuccessfulSends = 0
+RBPSresendCount = 0
 
 function Plugin:initLog ()
     self.logInit = true
@@ -964,18 +974,6 @@ function Plugin:acceptKey(response)
         end
 end
 
-function Plugin:addServerIpPortAndPass(IP,password)
-    for key,taulu in pairs(RBPSserverInfo) do
-        if taulu.IP == IP and taulu.password == password then
-            taulu.count = taulu.count + 1
-            return
-        end
-    end
-    
-    //if not didnt exists
-    table.insert(RBPSserverInfo,{count = 1, IP = IP, password = password})
-end
-
 function Plugin:getServerInfoTable()
 local max = 0
 local highestTable = nil
@@ -1276,9 +1274,31 @@ attacker_steamId = attacker_client:GetUserId(),
             //Lisätään data json-muodossa logiin.
             Plugin:addLog(deathLog)
     
+    end
 end
+//Todo: add more needed things
+function Plugin:AddServerInfos()
+    local mods = ""
+    local numMods = Client.GetNumMods()
+    if numMods > 0 then
+         for i = 1,numMods do
+            if Client.GetIsModMounted(i) then
+                mods= mods + Client.GetModTitle(i)
+            end
+         end
+    end
+    params.action = "game_ended"
+    params.statsVersion = Plugin.Version
+    params.serverName = Server.GetName()
+    params.successfulSends = RBPSsuccessfulSends
+    params.resendCount = RBPSresendCount
+    params.serverInfo = Plugin:getServerInfoTable()
+    params.mods = mods
+    params.awards = {} //added later
+    params.tags = self.config.Tags
+    
+    Plugin:addLog(params) 
 end
-//Votemenu
 
 //Command Methods
 //open Ingame_Browser with given Player Stats
@@ -1301,7 +1321,7 @@ end
 function Plugin:SetAdminAtNS2Stats(Client)
 if Shine:HasAccess( Client, "sh_verify" ) then
     Shared.SendHTTPRequest(RBPS.websiteUrl .. "/api/verifyServer/" .. Client:GetUserId() .. "?s=479qeuehq2829&key=" .. self.config.ServerKey, "GET",
-        function(response) RBPS:onHTTPRespVerify(Client,response) end) end
+        function(response) if Client then ServerAdminPrint(Client,response)end end) end
 end
 //Cleanup
 
