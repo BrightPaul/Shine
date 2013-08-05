@@ -205,6 +205,10 @@ function Plugin:OnUpgradeFinished(structure, researchId)
 end
 // Game events
 
+//every servertick
+
+function Plugin:Think()    
+end
 //check for Gamestart
 function Plugin:CheckGameStart()
     local Gamerules = GetGamerules()
