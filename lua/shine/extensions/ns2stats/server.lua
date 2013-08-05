@@ -36,7 +36,7 @@ local Assists={}
 Plugin.Players = {}
 
 function Plugin:Initialise()
-    self.enabled = true
+    self.Enabled = true
     if self.Config.ServerKey == "" then
         Shared.SendHTTPRequest(self.Config.website .. "/api/generateKey/?s=7g94389u3r89wujj3r892jhr9fwj", "GET",
             function(response) Plugin:acceptKey(response) end)
