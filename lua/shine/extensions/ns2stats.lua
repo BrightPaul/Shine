@@ -161,7 +161,7 @@ end
 function Plugin:OnPlayerHealed()
     // player Backed Up?
     if self:getHealth() >= 0.8 * self:getmaxHealth() then
-        Assists[self:getUserId()] = nil // drop all Assists on healed Player    
+        table.Empty(Assists[self:getUserId()]) //drop Assists
     end
 end
 //Building Stuff
@@ -446,7 +446,7 @@ function Plugin:addKill(attacker_steamId,target_steamId)
             taulu.deaths = taulu.deaths +1	
         end
     end
-    if Assists[target_steamId] ~= nill then
+    if #Assists[target_steamId} > 0 then
         table.remove(Assists.target_steamId, attacker_steamId)
         for i = 1,#Assists.target_steamId do
             Plugin:addAssists(Assists.target_steamid[i],target_steamId)    
