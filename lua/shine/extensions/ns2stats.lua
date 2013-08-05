@@ -23,7 +23,7 @@ Plugin.DefaultConfig =
     Assists = true, // Track assists?
     Awards = true, //show award (todo)
     ServerKey = "",
-    IngameBrowser = true // use ingame browser or Steamoverlay 
+    IngameBrowser = true, // use ingame browser or Steamoverlay 
     Tags = {} //Tags added to log  
 }
 
@@ -269,8 +269,8 @@ function Plugin:ClientDisconnect(Client)
     local Player = Client:GetControllingPlayer()
     if not Player then return end
     local connect={
-            action = "disconnect"
-            steamId = Player:GetUserId()
+            action = "disconnect",
+            steamId = Player:GetUserId(),
             score = Player.score
     }
     self:addLog(connect)
