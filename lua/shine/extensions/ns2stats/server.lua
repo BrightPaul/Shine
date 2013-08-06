@@ -54,6 +54,7 @@ RBPSgameFinished = 0
 
 function Plugin:Initialise()
     self.Enabled = true
+  
     if self.Config.ServerKey == "" then
         Shared.SendHTTPRequest(self.Config.WebsiteUrl .. "/api/generateKey/?s=7g94389u3r89wujj3r892jhr9fwj", "GET",
             function(response) Plugin:acceptKey(response) end)
@@ -235,10 +236,7 @@ function Plugin:EndGame()
 end
 
 //PlayerConnected
-function Plugin:ClientConfirmConnect( Client )
-    if not Client then return end
-    local Player = Client:GetControllingPlayer()
-    if not Player then return end
+function Plugin:ClientConnect( Client )
     Plugin:addPlayerToTable(Client)
     Plugin:setConnected(Client)
 end
@@ -246,7 +244,7 @@ end
 //PlayerDisconnect
 function Plugin:ClientDisconnect(Client)
     if not Client then return end
-    if Client:GetIsVirtual() then return end
+    if Client:isa("Server") then return end
     local Player = Client:GetControllingPlayer()
     if not Player then return end
     local connect={
@@ -318,8 +316,8 @@ function Plugin:sendData()
     return
     end	
 
-    Shared.SendHTTPRequest(self.Config.WebsiteDataUrl, "POST", params, function(response,status) Plugin.onHTTPResponseFromSend(client,"send",response,status) end)	
-    Notify ("log is send")
+    Shared.SendHTTPRequest(self.Config.WebsiteDataUrl, "POST", params, function(response,status) Plugin:onHTTPResponseFromSend(client,"send",response,status) end)	
+    Notify ("Log is send")
     RBPSsendStartTime = Shared.GetSystemTime()
 end
  
@@ -342,7 +340,7 @@ function Plugin:resendData()
     end
 
  function Plugin:onHTTPResponseFromSend(client,action,response,status)	
-        local message = json.decode(response)        
+        // local message = json.decode(response)        
         if message then
         
             if string.len(response)>0 then //if we got somedata, that means send was completed
@@ -475,6 +473,12 @@ function Plugin:addKill(attacker_steamId,target_steamId)
         end
 end
 
+//Todo: Multikills ?
+
+function Plugin:checkForMultiKills(name,streak)
+    //add sounds?
+end
+
 //To redo: assists
 function Plugin:addAssists(attacker_steamId,target_steamId)
     for key,taulu in pairs(Plugin.Players) do
@@ -579,9 +583,7 @@ function Plugin:createPlayerTable(client)
         steamId = client:GetUserId(),
         name = player:GetName(),
         score = HasMixin(player, "Scoring") and player:GetScore() or 0,
-        ping = client:GetPing(),
         teamnumber = player:GetTeamNumber(),
-        ipaddress = IPAddresstostring(Server.GetClientAddress(client)),
         x=0,
         y=0,
         z=0,
@@ -616,7 +618,14 @@ function Plugin:createPlayerTable(client)
         marine_commander_ELO = 0,
         alien_commander_ELO = 0,
     }
-
+    //for bots
+    if newPlayer.isbot == true then
+        newPlayer.ping = 0
+        newPlayer.ipaddress = "127.0.0.1"
+    else
+        newPlayer.ping = client:GetPing()
+        newPlayer.ipaddress = IPAddresstostring(Server.GetClientAddress(client))
+    end
     return newPlayer
     end
 function Plugin:weaponsAddMiss(RBPSplayer,weapon)
@@ -1326,7 +1335,7 @@ end
 
 //open Ingame_Browser with given Player Stats
 local function ShowPlayerStats(Client)
-    local playerid = Client::GetControllingPlayer():GetUserID()
+    local playerid = Client:GetUserID()
     local url = self.Config.Websiteurl + "/player/player/" + tostring(playerid)
     if self.Config.IngameBrowser then Server.SendNetworkMessage( Client, "Shine_Web", { URL = url }, true )
     else Client.ShowWebpage(url)
