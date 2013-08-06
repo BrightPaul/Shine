@@ -8,7 +8,7 @@ local Notify = Shared.Message
 local Plugin = Plugin
 local tostring = tostring 
 
-Plugin.Version = "0.2"
+Plugin.Version = "0.3"
 
 Plugin.HasConfig = true
 
@@ -43,6 +43,14 @@ Shine.Hook.SetupClassHook("Player","addHealth","OnPlayerGetHealed","PassivePost"
 //Score datatable 
 local Assists={}
 Plugin.Players = {}
+
+//values needed by NS2Stats
+logInit = false
+RBPSlog = ""
+RBPSlogPartNumber = 1
+RBPSsuccessfulSends = 0
+RBPSresendCount = 0
+Gamestarted = 0
 
 function Plugin:Initialise()
     self.Enabled = true
@@ -211,7 +219,7 @@ function Plugin:CheckGameStart()
 
     if State ~= kGameState.NotStarted and State ~= kGameState.PreGame then
          Plugin:addPlayersToLog(0)
-         self.gamestarted = Shared.getTime()
+         Gamestarted = Shared.GetTime()
     end 
 end
 
@@ -259,13 +267,6 @@ end
 
 //all the send Stuff
 
-//values needed by NS2Stats
-logInit = false
-RBPSlog = ""
-RBPSlogPartNumber = 1
-RBPSsuccessfulSends = 0
-RBPSresendCount = 0
-
 function Plugin:initLog ()
     logInit = true
     RBPSlog = ""
@@ -280,7 +281,7 @@ function Plugin:addLog(tbl)
     end
     
     tbl.time = Shared.GetGMTString(false)
-    tbl.gametime = Shared.GetTime() - self.gamestarted
+    tbl.gametime = Shared.GetTime() - Gamestarted
     RBPSlog = RBPSlog .. json.encode(tbl) .."\n"	
     //local data = RBPSlibc:CompressHuffman(RBPSlog)
     //Notify("compress size: " .. string.len(data) .. "decompress size: " .. string.len(RBPSlibc:Decompress(data)))        
