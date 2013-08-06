@@ -1312,6 +1312,7 @@ function Plugin:AddServerInfos()
             end
          end
     end*/
+    local params = {}
     params.action = "game_ended"
     params.statsVersion = Plugin.Version
     params.serverName = Server.GetName()
