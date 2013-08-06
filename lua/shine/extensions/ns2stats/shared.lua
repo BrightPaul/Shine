@@ -28,3 +28,10 @@ VoteMenu:AddPage( "Stats", function( self )
         self:SetPage( "Main" )
     end )
 end )
+Shine.VoteMenu:EditPage( "Main", function( self )
+    if Plugin.Enabled then
+    	self:AddSideButton( "NS2Stats", function()
+        self:SetPage( "Stats" ) 
+        end)       
+    end
+end )
