@@ -35,7 +35,7 @@ Plugin.Commands = {}
 //Shine.Hook.SetupClassHook( string Class, string Method, string HookName, "PassivePost" )
 
 Shine.Hook.SetupClassHook( "BuildingMixin", "AttemptToBuild", "OnBuildingDropped", "PassivePost" )
-Shine.Hook.SetupClassHook( "DamageMixin", "DoDamage", "OnDamageDealed", "PassivePost" )
+//Shine.Hook.SetupClassHook( "DamageMixin", "DoDamage", "OnDamageDealed", "PassivePost" )
 Shine.Hook.SetupClassHook("ResearchMixin","TechResearched","OnTechResearched","PassivePost")
 Shine.Hook.SetupClassHook("ResearchMixin","SetResearching","OnTechStartResearch","PassivePre")
 Shine.Hook.SetupClassHook("Player","addHealth","OnPlayerGetHealed","PassivePost") 
@@ -51,6 +51,7 @@ RBPSlogPartNumber = 1
 RBPSsuccessfulSends = 0
 RBPSresendCount = 0
 Gamestarted = 0
+RBPSlastLog = ""
 
 function Plugin:Initialise()
     self.Enabled = true
@@ -64,7 +65,7 @@ end
 //All the Damage/Player Stuff
 
 //Damage Dealed
-function Plugin:OnDamageDealed(target,attacker,doer,damage,damageType)
+function Plugin:OnDamageDealed( target, attacker, doer, damage, damageType)
     Plugin:addHitToLog(target, attacker, doer, damage, damageType)
 end
 
@@ -302,7 +303,7 @@ function Plugin:sendData()
     }
     
     RBPSlastGameFinished = RBPSgameFinished
-   if RBPSlastLog == nil then
+    if RBPSlastLog == nil then
     RBPSlastLogPartNumber = RBPSlogPartNumber	
     RBPSlastLog = RBPSlog
     self.initLog() //clears log	
@@ -404,7 +405,53 @@ function Plugin:sendServerStatus(gameState)
     Shared.SendHTTPRequest(self.Config.WebsiteStatusUrl, "POST", params, function(response,status) Plugin:onHTTPResponseFromSendStatus(client,"sendstatus",response,status) end)	
 
 end
+function Plugin:UpdatePlayerInTable(client)
+    if not client then return end
+    local player = client:GetControllingPlayer()
+    local steamId = client:GetUserId()
+    local origin = player:GetOrigin()
+    local weapon = "none"
+   
+    for key,taulu in pairs(Plugin.Players) do
+        --Jos taulun(pelaajan) steamid on sama kuin etsittävä niin päivitetään tiedot.
+        if (taulu["isbot"] == false and taulu["steamId"] == steamId) or (taulu["isbot"] == true and taulu["name"] == player:GetName()) then
+            taulu = Plugin:checkTeamChange(taulu,player)
+            taulu = Plugin:checkLifeformChange(taulu,player)
 
+            if taulu.lifeform == "dead" then //TODO optimize, happens many times when dead
+            taulu.damageTaken = {}
+            taulu.killstreak = 0
+            end	
+
+                        //weapon table>>
+                            if player.GetActiveWeapon and player:GetActiveWeapon() then
+                                weapon = player:GetActiveWeapon():GetMapName()
+                            end
+                            
+                            taulu["weapon"] = weapon
+                            RBPS:updateWeaponData(taulu)
+            //weapon table<<
+
+            if client:GetUserId() ~= 0 then
+            taulu["steamId"] = client:GetUserId()
+            end
+            taulu["name"] = player:GetName()
+            if HasMixin(player, "Scoring") then taulu["score"] = player:GetScore() end
+            taulu["ping"] = client:GetPing()
+            taulu["teamnumber"] = player:GetTeamNumber()
+            taulu["isbot"] = client:GetIsVirtual()	
+            taulu["isCommander"] = player:GetIsCommander()
+
+            for k,d in pairs(taulu.damageTaken) do	
+                d.time = d.time +1
+                if d.time > RBPSassistTime then
+                                    table.remove(taulu.damageTaken,k)	
+                end
+            end
+        end
+    //<<
+    end
+end
 // Stat add Functions
 
 function Plugin:addKill(attacker_steamId,target_steamId)
@@ -423,12 +470,15 @@ function Plugin:addKill(attacker_steamId,target_steamId)
             taulu.deaths = taulu.deaths +1	
         end
     end
-    if #Assists[target_steamId] > 0 then
-        table.remove(Assists[target_steamId], attacker_steamId)
-        for i = 1,#Assists[target_steamId] do
-            Plugin:addAssists(Assists[target_steamid][i],target_steamId)    
+    
+        if Assists[target_steamId] ~= nil then
+            table.remove(Assists[target_steamId], attacker_steamId)
+            if Assists[target_steamId] ~= nil then
+                for i = 1,#Assists[target_steamId] do
+                    Plugin:addAssists(Assists[target_steamid][i],target_steamId)    
+                end
+            end
         end
-    end
 end
 
 //To redo: assists
@@ -1256,14 +1306,14 @@ end
 //Todo: add more needed things
 function Plugin:AddServerInfos()
     local mods = ""
-    local numMods = Client.GetNumMods()
+    /*local numMods = Client.GetNumMods()
     if numMods > 0 then
          for i = 1,numMods do
             if Client.GetIsModMounted(i) then
                 mods= mods + Client.GetModTitle(i)
             end
          end
-    end
+    end*/
     params.action = "game_ended"
     params.statsVersion = Plugin.Version
     params.serverName = Server.GetName()
