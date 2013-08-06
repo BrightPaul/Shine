@@ -5,7 +5,7 @@ Shine ns2stats plugin.
 local Shine = Shine
 local Notify = Shared.Message
 
-local Plugin = {}
+local Plugin = Plugin
 local tostring = tostring 
 
 Plugin.Version = "0.2"
@@ -31,6 +31,15 @@ Plugin.CheckConfig = true
 
 Plugin.Commands = {}
 
+//TODO: add all Hooks here
+//Shine.Hook.SetupClassHook( string Class, string Method, string HookName, "PassivePost" )
+
+Shine.Hook.SetupClassHook( "BuildingMixin", "AttemptToBuild", "OnBuildingDropped", "PassivePost" )
+Shine.Hook.SetupClassHook( "DamageMixin", "DoDamage", "OnDamageDealed", "PassivePost" )
+Shine.Hook.SetupClassHook("ResearchMixin","TechResearched","OnTechResearched","PassivePost")
+Shine.Hook.SetupClassHook("ResearchMixin","SetResearching","OnTechStartResearch","PassivePre")
+Shine.Hook.SetupClassHook("Player","addHealth","OnPlayerGetHealed","PassivePost") 
+   
 //Score datatable 
 local Assists={}
 Plugin.Players = {}
@@ -38,28 +47,9 @@ Plugin.Players = {}
 function Plugin:Initialise()
     self.Enabled = true
     if self.Config.ServerKey == "" then
-        Shared.SendHTTPRequest(self.Config.website .. "/api/generateKey/?s=7g94389u3r89wujj3r892jhr9fwj", "GET",
+        Shared.SendHTTPRequest(self.Config.WebsiteUrl .. "/api/generateKey/?s=7g94389u3r89wujj3r892jhr9fwj", "GET",
             function(response) Plugin:acceptKey(response) end)
     end
-    
-    //TODO: add all Hooks here
-    //Shine.Hook.SetupClassHook( string Class, string Method, string HookName, "PassivePost" )
-    Shine.Hook.SetupClassHook("ConstructMixin","OnConstructionComplete","OnFinishedBuilt", "PassivPre")
-    Shine.Hook.SetupClassHook( "BuildingMixin", "AttemptToBuild", "BuildingDropped", "PassivePost" )
-    Shine.Hook.SetupClassHook( "DamageMixin", "DoDamage", "DealedDamage", "PassivePost" )
-    Shine.Hook.SetupClassHook( "ScoringMixin", "AddScore","ScoreChanged","PassivePost")
-    Shine.Hook.SetupClassHock( "NS2Gamerules", "OnEntityDestroy","OnPlayerDeath","PassivePost")
-    Shine.Hook.SetupClassHook("ResearchMixin","TechResearched","OnTechResearched","PassivePost")
-    Shine.Hook.SetupClassHook("ResearchMixin","SetResearching","OnTechStartResearch","PassivePre")
-    Shine.Hook.SetupClassHook("Player","addHealth","PlayergetHealed","PassivePost")
-    //Todo: Add all add functions + sendtoserver
-    // add all Data Function to Hooks Shine.Hook.Add( string HookName, string UniqueID, function HookFunction [, int Priority ] )
-    Shine.Hook.Add( "BuildingDropped", "AddBuildingdropped", Plugin:OnBuildDropped(newEnt, commander))
-    Shine.Hook.Add( "DealedDamage", "AddDamagetoS", Plugin:OnDamageDealed(target,attacker,doer,damage,damageType))
-    Shine.Hook.Add("OnFinishedBuilt","AddBuildtoStats",Plugin:OnBuildingBuilt(builder))
-    Shine.Hook.Add("OnTechResearched","AddStatFTech", Plugin:OnUpgradeFinished(structure, researchId))
-    Shine.Hook.Add("OnTechStartResearch","AddStatSTech", Plugin:addUpgradeStartedToLog(researchNode, player))
-    Shine.Hook.Add("PlayergetHealed","OnPlayerHealed", Plugin:OnPlayerHealed())     
     return true //finished loading
 end
 
@@ -135,7 +125,7 @@ function Plugin:OnEntityKilled(Gamerules, TargetEntity, Attacker, Inflictor, Poi
     Plugin:addDeathToLog(TargetEntity, Attacker, Inflictor)       
 end
 //Player gets heal
-function Plugin:OnPlayerHealed()
+function Plugin:OnPlayerGetHealed()
     // player Backed Up?
     if self:getHealth() >= 0.8 * self:getmaxHealth() then
         table.Empty(Assists[self:getUserId()]) //drop Assists
@@ -144,31 +134,33 @@ end
 //Building Stuff
 
 //Building Dropped
-function Plugin:OnBuildDropped(newEnt, commander)
+function Plugin:OnBuildingDropped(newEnt, commander)
 //TODO
 end
 
 //Building built
-function Plugin:OnBuildingBuilt(builder) 
-        local strloc = self:GetOrigin()
+function  Plugin:OnFinishedBuilt( Building , Builder )
+    if Builder:isa("Player") then 
+        local strloc = Building:GetOrigin()
         local build=
         {
-            id = self:GetId(), //test this self...
-            builder_name = builder:GetName(),
-            steamId = builder:GetUserId(),
-            structure_cost=self:GetCost(),
-            team = builder:GetTeamNumber(),
-            structure_name = self:GetMapName(),
+            id = Building:GetId(),
+            builder_name = Builder:GetName(),
+            steamId = Builder:GetUserId(),
+            structure_cost=Building:GetPointCost(),
+            team = Building:GetTeamNumber(),
+            structure_name = Building:GetMapName(),
             structure_x = tostring(strloc.x),
             structure_y = tostring(strloc.y),
             structure_z = tostring(strloc.z),
         }
         self:addLog(build)
+    end
 end
 //Upgrade Stuff
 
 //UpgradesStarted
-function Plugin:addUpgradeStartedToLog(researchNode, player)
+function Plugin:OnTechStartResearch(researchNode, player)
     if player:isa("Commander") then
         local client = Server.GetOwner(commander)
         local steamId = ""
@@ -191,7 +183,7 @@ function Plugin:addUpgradeStartedToLog(researchNode, player)
 end
 
 //Upgradefinished
-function Plugin:OnUpgradeFinished(structure, researchId)
+function Plugin:OnTechResearched( structure, researchId)
     local upgrade =
     {
         structure_id = structure:GetId(),
@@ -217,7 +209,10 @@ function Plugin:CheckGameStart()
 
     local State = Gamerules:GetGameState()
 
-    if State ~= kGameState.NotStarted and State ~= kGameState.PreGame then Plugin:addPlayersToLog(0) end 
+    if State ~= kGameState.NotStarted and State ~= kGameState.PreGame then
+         Plugin:addPlayersToLog(0)
+         self.gamestarted = Shared.getTime()
+    end 
 end
 
 //Round ends
@@ -263,6 +258,7 @@ function Plugin:JoinTeam( Gamerules, Player, NewTeam, Force )
 end
 
 //all the send Stuff
+
 //values needed by NS2Stats
 logInit = false
 RBPSlog = ""
@@ -284,7 +280,7 @@ function Plugin:addLog(tbl)
     end
     
     tbl.time = Shared.GetGMTString(false)
-    tbl.gametime = Shared.GetTime() - Plugin.gamestarted
+    tbl.gametime = Shared.GetTime() - self.gamestarted
     RBPSlog = RBPSlog .. json.encode(tbl) .."\n"	
     //local data = RBPSlibc:CompressHuffman(RBPSlog)
     //Notify("compress size: " .. string.len(data) .. "decompress size: " .. string.len(RBPSlibc:Decompress(data)))        
@@ -325,7 +321,7 @@ function Plugin:sendData()
     return
     end	
 
-    Shared.SendHTTPRequest(self.Config.websiteDataUrl, "POST", params, function(response,status) self.onHTTPResponseFromSend(client,"send",response,status) end)	
+    Shared.SendHTTPRequest(self.Config.WebsiteDataUrl, "POST", params, function(response,status) self.onHTTPResponseFromSend(client,"send",response,status) end)	
 
         RBPSsendStartTime = Shared.GetSystemTime()
     end
@@ -343,7 +339,7 @@ function Plugin:sendData()
         
         
 
-    Shared.SendHTTPRequest(Plugin.websiteDataUrl, "POST", params, function(response,status) Plugin:onHTTPResponseFromSend(client,"send",response,status) end)	
+    Shared.SendHTTPRequest(Plugin.WebsiteDataUrl, "POST", params, function(response,status) Plugin:onHTTPResponseFromSend(client,"send",response,status) end)	
 
         RBPSsendStartTime = Shared.GetSystemTime()
         RBPSresendCount = RBPSresendCount + 1
@@ -404,7 +400,7 @@ function Plugin:sendServerStatus(gameState)
             map = Shared.GetMapName(),
         }
 
-    Shared.SendHTTPRequest(Plugin.websiteStatusUrl, "POST", params, function(response,status) Plugin:onHTTPResponseFromSendStatus(client,"sendstatus",response,status) end)	
+    Shared.SendHTTPRequest(self.Config.WebsiteStatusUrl, "POST", params, function(response,status) Plugin:onHTTPResponseFromSendStatus(client,"sendstatus",response,status) end)	
 
 end
 
@@ -941,10 +937,10 @@ function Plugin:acceptKey(response)
             if decoded and decoded.key then
                 self.Config.ServerKey = decoded.key
                 Notify("NS2Stats: Key " .. self.Config.ServerKey .. " has been assigned to this server")
-                Notify("NS2Stats: You may use admin commands (sv_help) to change NS2Stats settings.")
-                Notify("NS2Stats: You may use admin command sv_verity_server to claim this server.")
+                Notify("NS2Stats: You may use admin command sh_verity to claim this server.")
                 Notify("NS2Stats setup complete.")
-                newAdvancedSettingAdded = true
+                self:SaveConfig()
+                                
             else
                 Notify("NS2Stats: Unable to receive unique key from server, stats wont work yet. ")
                 Notify("NS2Stats: Server restart might help.")
@@ -1286,14 +1282,14 @@ end
 local function ShowPlayerStats(Client,Playername)
     if Playername == "" then playerid = Client:GetUserID()
     else 
-    local url = self.Config.websiteurl + "/player/player/" + tostring(playerid) end
+    local url = self.Config.Websiteurl + "/player/player/" + tostring(playerid) end
     if self.Config.IngameBrowser then Server.SendNetworkMessage( Client, "Shine_Web", { URL = url }, true )
     else Client.ShowWebpage(url) end
 end
 
 //open Ingame_Browser with Server Stats
 local function ShowServerStats(Client)
-        local url= self.Config.websiteurl + "/server/server/" // + to string(self.Config.serverid)
+        local url= self.Config.Websiteurl + "/server/server/" // + to string(self.Config.serverid)
     	if self.Config.IngameBrowser then Server.SendNetworkMessage( Client, "Shine_Web", { URL = url }, true )
     	else Client.ShowWebpage(url) end
 end
@@ -1301,29 +1297,25 @@ end
 // set commanduser as admin at ns2stats
 local function SetAdminAtNS2Stats(Client)
 if Shine:HasAccess( Client, "sh_verify" ) then
-    Shared.SendHTTPRequest(self.Config.websiteUrl .. "/api/verifyServer/" .. Client:GetUserId() .. "?s=479qeuehq2829&key=" .. self.Config.ServerKey, "GET",
+    Shared.SendHTTPRequest(self.Config.WebsiteUrl .. "/api/verifyServer/" .. Client:GetUserId() .. "?s=479qeuehq2829&key=" .. self.Config.ServerKey, "GET",
         function(response) if Client then ServerAdminPrint(Client,response)end end) end
 end
 
 //register Commands
 //Commands
-local ShowPStats = Shine:RegisterCommand( "sh_showplayerstats", {"showplayerstats","showstats" }, ShowPlayerStats , true , true )
+local ShowPStats = Plugin:BindCommand( "sh_showplayerstats", {"showplayerstats","showstats" }, ShowPlayerStats , true , true )
 ShowPStats:AddParam{ Type = "clients"}
 ShowPStats:AddParam{ Type = "string",Optimal = true ,TakeRestOfLine = true,Default ="", MaxLength = kMaxChatLength}
 ShowPStats:Help("Shows stats of given <player> or if no given <player> from yourself")
-local ShowSStats = Shine:RegisterCommand( "sh_showserverstats", "showserverstats", ShowServerStats,true,true)
+local ShowSStats = Plugin:BindCommand( "sh_showserverstats", "showserverstats", ShowServerStats,true,true)
 ShowSStats:AddParam{ Type = "clients"}
 ShowSStats:Help("Shows server stats")
-local Verify = Shine:RegisterCommand( "sh_verify", {"verifystats","verify"},SetAdminAtNS2Stats)
+local Verify = Plugin:BindCommand( "sh_verify", {"verifystats","verify"},SetAdminAtNS2Stats)
 Verify:AddParam{ Type = "clients"}
 Verify:Help ("Sets yourself as serveradmin at NS2Stats.com")
 
 //Cleanup
 
 function Plugin:Cleanup()
-    for _, Command in pairs( self.Commands ) do
-        Shine:RemoveCommand( Command.ConCmd, Command.ChatCmd )
-    end
-
     self.Enabled = false
 end
