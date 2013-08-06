@@ -133,10 +133,10 @@ function Plugin:OnEntityKilled(Gamerules, TargetEntity, Attacker, Inflictor, Poi
     Plugin:addDeathToLog(TargetEntity, Attacker, Inflictor)       
 end
 //Player gets heal
-function Plugin:OnPlayerGetHealed()
+function Plugin:OnPlayerGetHealed( Player )
     // player Backed Up?
-    if self:getHealth() >= 0.8 * self:getmaxHealth() then
-        table.Empty(Assists[self:getUserId()]) //drop Assists
+    if Player:getHealth() >= 0.8 * Player:getmaxHealth() then
+        table.Empty(Assists[Player:getUserId()]) //drop Assists
     end
 end
 //Building Stuff
@@ -191,6 +191,7 @@ function Plugin:OnTechStartResearch(researchNode, player)
 end
 
 //Upgradefinished
+/* TODo fix Upgardename
 function Plugin:OnTechResearched( structure, researchId)
     local upgrade =
     {
@@ -203,6 +204,7 @@ function Plugin:OnTechResearched( structure, researchId)
     }
     self:addLog(upgrade)
 end
+*/ 
 // Game events
 
 //every servertick
@@ -210,18 +212,11 @@ end
 function Plugin:Think()    
 end
 //check for Gamestart
-function Plugin:CheckGameStart()
-    local Gamerules = GetGamerules()
-
-    if not Gamerules then return end
-
-    local State = Gamerules:GetGameState()
-
-    if State ~= kGameState.NotStarted and State ~= kGameState.PreGame then
+function Plugin:CheckGameStart( Gamerules, State, OldState)
+    if State == kGameState.Started then
          Plugin:addPlayersToLog(0)
-         Gamestarted = Shared.GetTime()
          RBPSgameFinished = 0
-    end 
+    end
 end
 
 //Round ends
@@ -230,18 +225,18 @@ function Plugin:EndGame()
     //to get last kills
     for index, fromPlayer in ientitylist(allPlayers) do
         local client = Server.GetOwner(fromPlayer)
-        Plugin:UpdatePlayerInTable(client)	
-    end 
+        Plugin:UpdatePlayerInTable(client)
+    end	
     RBPSgameFinished = 1
     Plugin:addPlayersToLog(1)
     Plugin:AddServerInfos()
-    if self.Config.Statsonline then self:sendData() end //senddata also clears log
+    // if self.Config.Statsonline then Plugin:sendData() end //senddata also clears log
+    Plugin:sendData()
 end
 
 //PlayerConnected
-function Plugin:ClientConnect( Client )
+function Plugin:ClientConfirmConnect( Client )
     if not Client then return end
-    if Client:GetIsVirtual() then return end
     local Player = Client:GetControllingPlayer()
     if not Player then return end
     Plugin:addPlayerToTable(Client)
@@ -263,7 +258,8 @@ function Plugin:ClientDisconnect(Client)
 end
 
 // Player joins a team
-function Plugin:JoinTeam( Gamerules, Player, NewTeam, Force )
+function Plugin:PostJoinTeam( Gamerules, Player, NewTeam, Force )
+    if not Player then return end
     Plugin:addPlayerJoinedTeamToLog(Player, NewTeam)  
 end
 
@@ -305,7 +301,7 @@ function Plugin:sendData()
     if RBPSlastLog == nil then
     RBPSlastLogPartNumber = RBPSlogPartNumber	
     RBPSlastLog = RBPSlog
-    self.initLog() //clears log	
+    Plugin:initLog() //clears log	
     else //if we still have data in last log, we wont send data normally, since it would be duplicated data
         
             local totalLength = string.len(RBPSlastLog) + string.len(RBPSlog)
@@ -316,14 +312,14 @@ function Plugin:sendData()
                 RBPSlastLog = RBPSlastLog .. RBPSlog //save log in memory if we need to resend, keep last log also in memory if send failed	
             end	
                             
-    self.initLog() //clears log
+    Plugin:initLog() //clears log
     //since we do not send log part we dont need to increase part count
     RBPSlogPartNumber = RBPSlogPartNumber - 1 //is increased after this function happens
     return
     end	
 
-    Shared.SendHTTPRequest(self.Config.WebsiteDataUrl, "POST", params, function(response,status) self.onHTTPResponseFromSend(client,"send",response,status) end)	
-
+    Shared.SendHTTPRequest(self.Config.WebsiteDataUrl, "POST", params, function(response,status) Plugin.onHTTPResponseFromSend(client,"send",response,status) end)	
+    Notify ("log is send")
     RBPSsendStartTime = Shared.GetSystemTime()
 end
  
@@ -389,7 +385,7 @@ end
 
 function Plugin:sendServerStatus(gameState)
     local stime = Shared.GetGMTString(false)
-    local gameTime = Shared.GetTime() - Plugin.gamestarted
+    local gameTime = Shared.GetTime() - Gamerules.gameStartTime
         local params =
         {
             key = self.Config.ServerKey,
@@ -1249,7 +1245,7 @@ attacker_weapon	= "natural causes",
 }
 Plugin:addLog(deathLog)
 --Structure kill
-else Plugin:addStructureKilledToLog(target, attacker, doer)
+else //todo Plugin:addStructureKilledToLog(target, attacker, doer)
 end
 end
     else //suicide
@@ -1304,7 +1300,7 @@ end
 //Todo: add more needed things
 function Plugin:AddServerInfos()
     local mods = ""
-    /*local numMods = Client.GetNumMods()
+    /*todo local numMods = Client.GetNumMods()
     if numMods > 0 then
          for i = 1,numMods do
             if Client.GetIsModMounted(i) then
@@ -1318,7 +1314,7 @@ function Plugin:AddServerInfos()
     params.serverName = Server.GetName()
     params.successfulSends = RBPSsuccessfulSends
     params.resendCount = RBPSresendCount
-    params.serverInfo = Plugin:getServerInfoTable()
+    //todo params.serverInfo = Plugin:getServerInfoTable()
     params.mods = mods
     params.awards = {} //added later
     params.tags = self.Config.Tags
@@ -1329,12 +1325,12 @@ end
 //Command Methods
 
 //open Ingame_Browser with given Player Stats
-local function ShowPlayerStats(Client,Playername)
-    if Playername == "" then playerid = Client:GetUserID()
-    else 
-    local url = self.Config.Websiteurl + "/player/player/" + tostring(playerid) end
+local function ShowPlayerStats(Client)
+    local playerid = Client::GetControllingPlayer():GetUserID()
+    local url = self.Config.Websiteurl + "/player/player/" + tostring(playerid)
     if self.Config.IngameBrowser then Server.SendNetworkMessage( Client, "Shine_Web", { URL = url }, true )
-    else Client.ShowWebpage(url) end
+    else Client.ShowWebpage(url)
+    end
 end
 
 //open Ingame_Browser with Server Stats
@@ -1354,14 +1350,11 @@ end
 //register Commands
 //Commands
 local ShowPStats = Plugin:BindCommand( "sh_showplayerstats", {"showplayerstats","showstats" }, ShowPlayerStats , true , true )
-ShowPStats:AddParam{ Type = "clients"}
-ShowPStats:AddParam{ Type = "string",Optimal = true ,TakeRestOfLine = true,Default ="", MaxLength = kMaxChatLength}
+// ShowPStats:AddParam{ Type = "string",Optimal = true ,TakeRestOfLine = true,Default ="", MaxLength = kMaxChatLength}
 ShowPStats:Help("Shows stats of given <player> or if no given <player> from yourself")
 local ShowSStats = Plugin:BindCommand( "sh_showserverstats", "showserverstats", ShowServerStats,true,true)
-ShowSStats:AddParam{ Type = "clients"}
 ShowSStats:Help("Shows server stats")
 local Verify = Plugin:BindCommand( "sh_verify", {"verifystats","verify"},SetAdminAtNS2Stats)
-Verify:AddParam{ Type = "clients"}
 Verify:Help ("Sets yourself as serveradmin at NS2Stats.com")
 
 //Cleanup
