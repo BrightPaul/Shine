@@ -46,12 +46,11 @@ Plugin.Players = {}
 
 //values needed by NS2Stats
 logInit = false
-RBPSlog = ""
 RBPSlogPartNumber = 1
 RBPSsuccessfulSends = 0
 RBPSresendCount = 0
 Gamestarted = 0
-RBPSlastLog = ""
+RBPSgameFinished = 0
 
 function Plugin:Initialise()
     self.Enabled = true
@@ -221,6 +220,7 @@ function Plugin:CheckGameStart()
     if State ~= kGameState.NotStarted and State ~= kGameState.PreGame then
          Plugin:addPlayersToLog(0)
          Gamestarted = Shared.GetTime()
+         RBPSgameFinished = 0
     end 
 end
 
@@ -232,6 +232,7 @@ function Plugin:EndGame()
         local client = Server.GetOwner(fromPlayer)
         Plugin:UpdatePlayerInTable(client)	
     end 
+    RBPSgameFinished = 1
     Plugin:addPlayersToLog(1)
     Plugin:AddServerInfos()
     if self.Config.Statsonline then self:sendData() end //senddata also clears log
@@ -291,8 +292,6 @@ end
 
 
 function Plugin:sendData()
- //sendata is only called at gameend,so :
- RBPSgameFinished = 1  
     local params =
     {
         key = self.Config.ServerKey,
@@ -307,7 +306,7 @@ function Plugin:sendData()
     RBPSlastLogPartNumber = RBPSlogPartNumber	
     RBPSlastLog = RBPSlog
     self.initLog() //clears log	
-        else //if we still have data in last log, we wont send data normally, since it would be duplicated data
+    else //if we still have data in last log, we wont send data normally, since it would be duplicated data
         
             local totalLength = string.len(RBPSlastLog) + string.len(RBPSlog)
             
@@ -325,11 +324,10 @@ function Plugin:sendData()
 
     Shared.SendHTTPRequest(self.Config.WebsiteDataUrl, "POST", params, function(response,status) self.onHTTPResponseFromSend(client,"send",response,status) end)	
 
-        RBPSsendStartTime = Shared.GetSystemTime()
-    end
-
-
- function Plugin:resendData()
+    RBPSsendStartTime = Shared.GetSystemTime()
+end
+ 
+function Plugin:resendData()
          
         local params =
         {
