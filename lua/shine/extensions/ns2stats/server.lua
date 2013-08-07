@@ -34,7 +34,7 @@ Plugin.Commands = {}
 //TODO: add all Hooks here
 //Shine.Hook.SetupClassHook( string Class, string Method, string HookName, "PassivePost" )
 
-//Shine.Hook.SetupClassHook( "DamageMixin", "DoDamage", "OnDamageDealed", "PassivePost" )
+Shine.Hook.SetupClassHook( "DamageMixin", "DoDamage", "OnDamageDealt", "PassivePost" )
 Shine.Hook.SetupClassHook("ResearchMixin","TechResearched","OnTechResearched","PassivePost")
 Shine.Hook.SetupClassHook("ResearchMixin","SetResearching","OnTechStartResearch","PassivePre")
 Shine.Hook.SetupClassHook("Player","addHealth","OnPlayerGetHealed","PassivePost") 
@@ -69,8 +69,14 @@ end
 
 //All the Damage/Player Stuff
 
-//Damage Dealed
-function Plugin:OnDamageDealed( target, attacker, doer, damage, damageType)
+//Damage Dealt Todo
+function Plugin:OnDamageDealt(Client, damage, target, point, direction, surface, altMode, showtracer)
+    if Client then return end
+    local attacker = Client:GetParent()
+    local damageType = kDamageType.Normal
+    if Client.GetDamageType then
+            damageType = Client:GetDamageType() end
+    local doer = attacker:GetActiveWeapon() 
     Plugin:addHitToLog(target, attacker, doer, damage, damageType)
 end
 
@@ -302,7 +308,7 @@ end
 
 //Player log out CC
 function Plugin:CommLogout( Chair )
-    if not Chair return end
+    if not Chair then return end
     local Client = Chair:GetCommander():getClient()
     if not Client or Client:GetIsVirtual() then return end
     Plugin:UpdatePlayerInTable(Client)
@@ -327,7 +333,6 @@ function Plugin:addLog(tbl)
     RBPSlog = RBPSlog .. json.encode(tbl) .."\n"	
     //local data = RBPSlibc:CompressHuffman(RBPSlog)
     //Notify("compress size: " .. string.len(data) .. "decompress size: " .. string.len(RBPSlibc:Decompress(data)))        
-    RBPSlogPartNumber = RBPSlogPartNumber + 1
 end
 
 
@@ -365,6 +370,7 @@ function Plugin:sendData()
     Shared.SendHTTPRequest(self.Config.WebsiteDataUrl, "POST", params, function(response,status) Plugin:onHTTPResponseFromSend(client,"send",response,status) end)	
     Notify ("Log is send")
     RBPSsendStartTime = Shared.GetSystemTime()
+    RBPSlogPartNumber = RBPSlogPartNumber + 1
 end
  
 function Plugin:resendData()
@@ -1382,7 +1388,7 @@ end
 //Command Methods
 
 //open Ingame_Browser with given Player Stats
-local function ShowPlayerStats(Client)
+function Plugin:ShowPlayerStats(Client)
     local playerid = Client:GetUserID()
     local url = self.Config.Websiteurl + "/player/player/" + tostring(playerid)
     if self.Config.IngameBrowser then Server.SendNetworkMessage( Client, "Shine_Web", { URL = url }, true )
@@ -1391,28 +1397,42 @@ local function ShowPlayerStats(Client)
 end
 
 //open Ingame_Browser with Server Stats
-local function ShowServerStats(Client)
+function Plugin:ShowServerStats(Client)
         local url= self.Config.Websiteurl + "/server/server/" // + to string(self.Config.serverid)
     	if self.Config.IngameBrowser then Server.SendNetworkMessage( Client, "Shine_Web", { URL = url }, true )
     	else Client.ShowWebpage(url) end
 end
 
 // set commanduser as admin at ns2stats
-local function SetAdminAtNS2Stats(Client)
+function Plugin:SetAdminAtNS2Stats(Client)
 if Shine:HasAccess( Client, "sh_verify" ) then
     Shared.SendHTTPRequest(self.Config.WebsiteUrl .. "/api/verifyServer/" .. Client:GetUserId() .. "?s=479qeuehq2829&key=" .. self.Config.ServerKey, "GET",
-        function(response) if Client then ServerAdminPrint(Client,response)end end) end
+        function(response) ServerAdminPrint(Client,response) end) end
 end
 
 //register Commands
 //Commands
-local ShowPStats = Plugin:BindCommand( "sh_showplayerstats", {"showplayerstats","showstats" }, ShowPlayerStats , true , true )
-// ShowPStats:AddParam{ Type = "string",Optimal = true ,TakeRestOfLine = true,Default ="", MaxLength = kMaxChatLength}
-ShowPStats:Help("Shows stats of given <player> or if no given <player> from yourself")
-local ShowSStats = Plugin:BindCommand( "sh_showserverstats", "showserverstats", ShowServerStats,true,true)
-ShowSStats:Help("Shows server stats")
-local Verify = Plugin:BindCommand( "sh_verify", {"verifystats","verify"},SetAdminAtNS2Stats)
-Verify:Help ("Sets yourself as serveradmin at NS2Stats.com")
+function Plugin:CreateCommands()
+    local PlayerStats(Client)
+        	if not Client then return end
+        	Plugin:ShowPlayerStats( Client )
+    end
+    local ShowPStats = Plugin:BindCommand( "sh_showplayerstats", {"showplayerstats","showstats" }, PlayerStats , true)
+    // ShowPStats:AddParam{ Type = "string",Optimal = true ,TakeRestOfLine = true,Default ="", MaxLength = kMaxChatLength}
+    ShowPStats:Help("Shows stats of given <player> or if no given <player> from yourself")
+    local function ServerStats(Client)
+        if not Client then return end
+        Plugin:ShowServerStats(Client)
+    end
+    local ShowSStats = Plugin:BindCommand( "sh_showserverstats", "showserverstats", ServerStats,true)
+    ShowSStats:Help("Shows server stats")
+    local function AdminAtNS2Stats (Client)
+        if not Client then return end
+        Plugin:SetAdminAtNS2Stats(Client)
+    end
+    local Verify = Plugin:BindCommand( "sh_verify", {"verifystats","verify"},AdminAtNS2Stats)
+    Verify:Help ("Sets yourself as serveradmin at NS2Stats.com")
+end
 
 //Cleanup
 
