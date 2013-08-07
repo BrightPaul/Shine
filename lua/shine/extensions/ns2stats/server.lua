@@ -34,7 +34,6 @@ Plugin.Commands = {}
 //TODO: add all Hooks here
 //Shine.Hook.SetupClassHook( string Class, string Method, string HookName, "PassivePost" )
 
-Shine.Hook.SetupClassHook( "BuildingMixin", "AttemptToBuild", "OnBuildingDropped", "PassivePost" )
 //Shine.Hook.SetupClassHook( "DamageMixin", "DoDamage", "OnDamageDealed", "PassivePost" )
 Shine.Hook.SetupClassHook("ResearchMixin","TechResearched","OnTechResearched","PassivePost")
 Shine.Hook.SetupClassHook("ResearchMixin","SetResearching","OnTechStartResearch","PassivePre")
@@ -59,6 +58,12 @@ function Plugin:Initialise()
         Shared.SendHTTPRequest(self.Config.WebsiteUrl .. "/api/generateKey/?s=7g94389u3r89wujj3r892jhr9fwj", "GET",
             function(response) Plugin:acceptKey(response) end)
     end
+    //toget all Player into scorelist
+    local allPlayers = Shared.GetEntitiesWithClassname("Player")
+    for index, fromPlayer in ientitylist(allPlayers) do
+        local client = Server.GetOwner(fromPlayer)
+        Plugin:UpdatePlayerInTable(client)
+    end	
     return true //finished loading
 end
 
@@ -143,8 +148,20 @@ end
 //Building Stuff
 
 //Building Dropped
-function Plugin:OnBuildingDropped(newEnt, commander)
-//TODO
+function Plugin:OnConstructInit( Building )
+    local ID = Building:GetId()
+    local Name = Building:GetClassName()
+    local Team = Building:GetTeam()
+
+    if not Team then return end
+
+    local Owner = Building:GetOwner()
+    Owner = Owner or Team:GetCommander()
+
+    if not Owner then return end
+
+    local Client = Server.GetOwner( Owner )
+    //Todo add to stats
 end
 
 //Building built
@@ -166,6 +183,12 @@ function  Plugin:OnFinishedBuilt( Building , Builder )
         self:addLog(build)
     end
 end
+
+//Building recyled
+function Plugin:OnBuildingRecycled( Building, ResearchID )
+    //Todo
+end
+
 //Upgrade Stuff
 
 //UpgradesStarted
@@ -223,7 +246,7 @@ end
 //Round ends
 function Plugin:EndGame()
     local allPlayers = Shared.GetEntitiesWithClassname("Player")
-    //to get last kills
+    //to update ScoreList
     for index, fromPlayer in ientitylist(allPlayers) do
         local client = Server.GetOwner(fromPlayer)
         Plugin:UpdatePlayerInTable(client)
@@ -244,12 +267,11 @@ end
 //PlayerDisconnect
 function Plugin:ClientDisconnect(Client)
     if not Client then return end
-    if Client:isa("Server") then return end
     local Player = Client:GetControllingPlayer()
     if not Player then return end
     local connect={
             action = "disconnect",
-            steamId = Player:GetUserId(),
+            steamId = Client:GetUserId(),
             score = Player.score
     }
     self:addLog(connect)
@@ -258,9 +280,33 @@ end
 // Player joins a team
 function Plugin:PostJoinTeam( Gamerules, Player, NewTeam, Force )
     if not Player then return end
-    Plugin:addPlayerJoinedTeamToLog(Player, NewTeam)  
+    local Client = Player:GetClient()
+    Plugin:addPlayerJoinedTeamToLog(Player, NewTeam) 
+    Plugin:UpdatePlayerInTable(Client)
 end
 
+//player changes Name
+function Plugin:PlayerNameChange( Player, Name, OldName )
+    if not Player then return end
+    local Client = Player:GetClient()
+    Plugin:UpdatePlayerInTable(Client)
+end
+
+//Player become Comm
+function Plugin:CommLoginPlayer( Chair, Player )
+    if not Player then return end
+    local Client = Player:GetClient()
+    if Client:GetIsVirtual() then return end
+    Plugin:UpdatePlayerInTable(Client)
+end
+
+//Player log out CC
+function Plugin:CommLogout( Chair )
+    if not Chair return end
+    local Client = Chair:GetCommander():getClient()
+    if not Client or Client:GetIsVirtual() then return end
+    Plugin:UpdatePlayerInTable(Client)
+end
 //all the send Stuff
 
 function Plugin:initLog ()
@@ -467,7 +513,7 @@ function Plugin:addKill(attacker_steamId,target_steamId)
             table.remove(Assists[target_steamId], attacker_steamId)
             if Assists[target_steamId] ~= nil then
                 for i = 1,#Assists[target_steamId] do
-                    Plugin:addAssists(Assists[target_steamid][i],target_steamId)    
+                    Plugin:addAssists(Assists[target_steamid][i],target_steamId,"0")    
                 end
             end
         end
@@ -480,7 +526,7 @@ function Plugin:checkForMultiKills(name,streak)
 end
 
 //To redo: assists
-function Plugin:addAssists(attacker_steamId,target_steamId)
+function Plugin:addAssists(attacker_steamId,target_steamId, value)
     for key,taulu in pairs(Plugin.Players) do
         if taulu["steamId"] == target_steamId then
             for k,d in pairs(taulu.damageTaken) do	
@@ -494,6 +540,9 @@ function Plugin:addAssists(attacker_steamId,target_steamId)
                             local pointValue = Plugin:getPlayerClientBySteamId(target_steamId):GetControllingPlayer():GetPointValue()*0.5
                             // player:AddAssist() //RBPSplayer entity should update 1 second later automatically
                             player:AddScore(pointValue)
+                            if  Assists[d.steamId] == nil then Assists[d.steamId] = 0 end
+                            Assists[d.steamId]= Assists[d.steamId] + 1
+                            taulu["assists"] = Assists[d.steamId]
                         end
                     end
                 end
@@ -1170,7 +1219,6 @@ function Plugin:addHitToLog(target, attacker, doer, damage, damageType)
 end
 
 function Plugin:addDeathToLog(target, attacker, doer)
-    if not Server then return end
     if attacker ~= nil and doer ~= nil then
         local attackerOrigin = attacker:GetOrigin()
         local targetWeapon = "none"
