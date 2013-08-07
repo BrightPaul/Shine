@@ -58,6 +58,7 @@ function Plugin:Initialise()
         Shared.SendHTTPRequest(self.Config.WebsiteUrl .. "/api/generateKey/?s=7g94389u3r89wujj3r892jhr9fwj", "GET",
             function(response) Plugin:acceptKey(response) end)
     end
+    Plugin:CreateCommands()
     //toget all Player into scorelist
     local allPlayers = Shared.GetEntitiesWithClassname("Player")
     for index, fromPlayer in ientitylist(allPlayers) do
@@ -307,10 +308,10 @@ function Plugin:CommLoginPlayer( Chair, Player )
 end
 
 //Player log out CC
-function Plugin:CommLogout( Chair )
-    if not Chair then return end
-    local Client = Chair:GetCommander():getClient()
-    if not Client or Client:GetIsVirtual() then return end
+function Plugin:CommLogout( Chair, Player )
+    if not Player then return end
+    local Client = Player:GetClient()
+    if Client:GetIsVirtual() then return end
     Plugin:UpdatePlayerInTable(Client)
 end
 //all the send Stuff
@@ -1413,9 +1414,9 @@ end
 //register Commands
 //Commands
 function Plugin:CreateCommands()
-    local PlayerStats(Client)
-        	if not Client then return end
-        	Plugin:ShowPlayerStats( Client )
+    local function PlayerStats(Client)
+        if not Client then return end
+        Plugin:ShowPlayerStats( Client )
     end
     local ShowPStats = Plugin:BindCommand( "sh_showplayerstats", {"showplayerstats","showstats" }, PlayerStats , true)
     // ShowPStats:AddParam{ Type = "string",Optimal = true ,TakeRestOfLine = true,Default ="", MaxLength = kMaxChatLength}
