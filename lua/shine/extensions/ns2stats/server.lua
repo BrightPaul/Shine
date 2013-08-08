@@ -299,7 +299,7 @@ end
 
 //PlayerConnected
 function Plugin:ClientConnect( Client )
-    if not Client return end
+    if not Client then return end
     Plugin:addPlayerToTable(Client)
     Plugin:setConnected(Client)
 end
