@@ -222,47 +222,79 @@ function Plugin:OnTechStartResearch(researchNode, player)
 end
 
 //Upgradefinished
-/* TODo fix Upgardename
 function Plugin:OnTechResearched( structure, researchId)
     local upgrade =
     {
         structure_id = structure:GetId(),
         team = structure:GetTeamNumber(),
         commander_steamid = -1,
-        upgrade_name = Enumtostring(kTechId, researchId),
+        upgrade_name = EnumtoString(kTechId, researchId),
         costs = GetCostForTech(researchId),
         action ="upgrade_finished"    
     }
     self:addLog(upgrade)
 end
-*/ 
 // Game events
 
 //every servertick
 
 function Plugin:Think()    
 end
-//check for Gamestart
-function Plugin:CheckGameStart( Gamerules, State, OldState)
-    if State == kGameState.Started then
+
+function Plugin:SetGameState( Gamerules, NewState, OldState )
+    //Gamestart
+    if NewState == 4 and OldState == 3 then
          Plugin:addPlayersToLog(0)
          RBPSgameFinished = 0
     end
-end
-
-//Round ends
-function Plugin:EndGame()
-    local allPlayers = Shared.GetEntitiesWithClassname("Player")
-    //to update ScoreList
-    for index, fromPlayer in ientitylist(allPlayers) do
-        local client = Server.GetOwner(fromPlayer)
-        Plugin:UpdatePlayerInTable(client)
-    end	
-    RBPSgameFinished = 1
-    Plugin:addPlayersToLog(1)
-    Plugin:AddServerInfos()
-    // if self.Config.Statsonline then Plugin:sendData() end //senddata also clears log
-    Plugin:sendData()
+    //Gameend
+    if OldState == 4 and (NewState == 5 or NewState == 6) then
+       local NS2GR = nil
+       local entityList = Shared.GetEntitiesWithClassname("NS2Gamerules")
+       if entityList:GetSize() > 0 then
+            NS2GR = entityList:GetEntityAtIndex(0)
+            //debug
+            Notify("NS2GR set")
+       else return end
+       local allPlayers = Shared.GetEntitiesWithClassname("Player")
+        //to update ScoreList
+       for index, fromPlayer in ientitylist(allPlayers) do
+            local client = Server.GetOwner(fromPlayer)
+            Plugin:UpdatePlayerInTable(client)
+        end	
+        RBPSgameFinished = 1
+        Plugin:addPlayersToLog(1)
+        local winningTeam = 0
+        //Todo 
+        if NewState == 5 then
+                    winningTeam = 2
+        elseif NewState == 6 then
+                    winningTeam = 1
+        end
+        //debug
+        Notify("Winning Team: " .. winningTeam)
+        local initialHiveTechIdString = "None"
+            
+            if NS2GR.initialHiveTechId then
+                    initialHiveTechIdString = EnumToString(kTechId, NS2GR.initialHiveTechId)
+            end
+            
+            local params =
+                {
+                    version = ToString(Shared.GetBuildNumber()),
+                    winner = ToString(winningTeam),
+                    length = string.format("%.2f", Shared.GetTime() - NS2GR.gameStartTime),
+                    map = Shared.GetMapName(),
+                    start_location1 = NS2GR.startingLocationNameTeam1,
+                    start_location2 = NS2GR.startingLocationNameTeam2,
+                    start_path_distance = NS2GR.startingLocationsPathDistance,
+                    start_hive_tech = initialHiveTechIdString,
+                }
+        Plugin:AddServerInfos(params)
+        // if self.Config.Statsonline then Plugin:sendData() end //senddata also clears log
+        Plugin:sendData() 
+    end
+    
 end
 
 //PlayerConnected
@@ -1362,26 +1394,32 @@ attacker_steamId = attacker_client:GetUserId(),
     end
 end
 //Todo: add more needed things
-function Plugin:AddServerInfos()
+function Plugin:AddServerInfos(params)
     local mods = ""
-    /*todo local numMods = Client.GetNumMods()
+    local numMods = Server.GetNumMods()
     if numMods > 0 then
          for i = 1,numMods do
-            if Client.GetIsModMounted(i) then
-                mods= mods + Client.GetModTitle(i)
+            if Server.GetIsModMounted(i) then
+                mods= mods .."," .. Server.GetModTitle(i)
             end
          end
-    end*/
-    local params = {}
+    end
     params.action = "game_ended"
     params.statsVersion = Plugin.Version
     params.serverName = Server.GetName()
     params.successfulSends = RBPSsuccessfulSends
     params.resendCount = RBPSresendCount
-    //todo params.serverInfo = Plugin:getServerInfoTable()
     params.mods = mods
     params.awards = {} //added later
     params.tags = self.Config.Tags
+    params.private = false
+    params.autoarrange = false //use Sh plugin setting later?
+    params.serverInfo =
+    {
+        password = "",
+        IP = IPAddressToString(Server.GetIpAddress()),
+        count = 30 //servertick?
+    }
     
     Plugin:addLog(params) 
 end
@@ -1391,7 +1429,7 @@ end
 //open Ingame_Browser with given Player Stats
 function Plugin:ShowPlayerStats(Client)
     local playerid = Client:GetUserID()
-    local url = self.Config.Websiteurl + "/player/player/" + tostring(playerid)
+    local url = self.Config.Websiteurl .. "/player/player/" .. tostring(playerid)
     if self.Config.IngameBrowser then Server.SendNetworkMessage( Client, "Shine_Web", { URL = url }, true )
     else Client.ShowWebpage(url)
     end
@@ -1399,7 +1437,7 @@ end
 
 //open Ingame_Browser with Server Stats
 function Plugin:ShowServerStats(Client)
-        local url= self.Config.Websiteurl + "/server/server/" // + to string(self.Config.serverid)
+        local url= self.Config.Websiteurl .. "/server/server/" // + to string(self.Config.serverid)
     	if self.Config.IngameBrowser then Server.SendNetworkMessage( Client, "Shine_Web", { URL = url }, true )
     	else Client.ShowWebpage(url) end
 end
