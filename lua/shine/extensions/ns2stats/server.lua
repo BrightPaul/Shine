@@ -507,7 +507,7 @@ function Plugin:UpdatePlayerInTable(client)
                             end
                             
                             taulu["weapon"] = weapon
-                            RBPS:updateWeaponData(taulu)
+                            Plugin:updateWeaponData(taulu)
             //weapon table<<
 
             if client:GetUserId() ~= 0 then
@@ -713,7 +713,7 @@ function Plugin:createPlayerTable(client)
         newPlayer.ipaddress = "127.0.0.1"
     else
         newPlayer.ping = client:GetPing()
-        newPlayer.ipaddress = IPAddresstostring(Server.GetClientAddress(client))
+        newPlayer.ipaddress = tostring(Server.GetClientAddress(client))
     end
     return newPlayer
     end
