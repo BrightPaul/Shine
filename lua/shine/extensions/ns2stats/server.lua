@@ -35,7 +35,7 @@ Plugin.Commands = {}
 //Shine.Hook.SetupClassHook( string Class, string Method, string HookName, "PassivePost" )
 
 Shine.Hook.SetupClassHook( "DamageMixin", "DoDamage", "OnDamageDealt", "PassivePost" )
-Shine.Hook.SetupClassHook("ResearchMixin","TechResearched","OnTechResearched","PassivePost")
+//todo Shine.Hook.SetupClassHook("ResearchMixin","TechResearched","OnTechResearched","PassivePost")
 Shine.Hook.SetupClassHook("ResearchMixin","SetResearching","OnTechStartResearch","PassivePre")
 Shine.Hook.SetupClassHook("Player","addHealth","OnPlayerGetHealed","PassivePost") 
    
@@ -63,8 +63,8 @@ function Plugin:Initialise()
     local allPlayers = Shared.GetEntitiesWithClassname("Player")
     for index, fromPlayer in ientitylist(allPlayers) do
         local client = Server.GetOwner(fromPlayer)
-        Plugin:UpdatePlayerInTable(client)
-    end	
+        Plugin:addPlayerToTable(client)
+    end
     return true //finished loading
 end
 
@@ -228,9 +228,9 @@ function Plugin:OnTechResearched( structure, researchId)
         structure_id = structure:GetId(),
         team = structure:GetTeamNumber(),
         commander_steamid = -1,
-        upgrade_name = EnumtoString(kTechId, researchId),
+        upgrade_name = tostring(GetDisplayNameForTechId(researchId)),
         costs = GetCostForTech(researchId),
-        action ="upgrade_finished"    
+        action ="upgrade_finished",    
     }
     self:addLog(upgrade)
 end
@@ -299,6 +299,7 @@ end
 
 //PlayerConnected
 function Plugin:ClientConnect( Client )
+    if not Client return end
     Plugin:addPlayerToTable(Client)
     Plugin:setConnected(Client)
 end
@@ -434,10 +435,10 @@ function Plugin:resendData()
             end
         
             if message.other then
-    Plugin:messageAll(message.other)
-    end
+                Plugin:messageAll(message.other)
+            end
         
-    if message.error == "NOT_ENOUGH_PLAYERS" then
+            if message.error == "NOT_ENOUGH_PLAYERS" then
                    local playerList = EntityListToTable(Shared.GetEntitiesWithClassname("Player"))
                /* for p = 1, #playerList do
                 
@@ -448,14 +449,14 @@ function Plugin:resendData()
                 return
             end	
 
-    if message.link then	
+            if message.link then	
                 local playerList = EntityListToTable(Shared.GetEntitiesWithClassname("Player"))
                 /*for p = 1, #playerList do
                     
                     Cout:SendMessageToClient(playerList[p], "lastRoundLink",{lastRound = self.Config.websiteUrl .. message.link})
                       
                 end*/
-    end	
+            end	
         elseif response then //if message = nil, json parse failed prob or timeout
             if string.len(response)>0 then //if we got somedata, that means send was completed
                 RBPSlastLog = nil
@@ -1396,12 +1397,12 @@ end
 //Todo: add more needed things
 function Plugin:AddServerInfos(params)
     local mods = ""
-    local numMods = Server.GetNumMods()
+    local numMods = Server.GetNumActiveMods()
     if numMods > 0 then
          for i = 1,numMods do
-            if Server.GetIsModMounted(i) then
-                mods= mods .."," .. Server.GetModTitle(i)
-            end
+                if Server.GetActiveModId(i) ~= nil then
+                    mods= mods .."," .. Server.GetModTitle(i)
+                end
          end
     end
     params.action = "game_ended"
