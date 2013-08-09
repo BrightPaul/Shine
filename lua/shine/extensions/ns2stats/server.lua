@@ -8,7 +8,7 @@ local Notify = Shared.Message
 local Plugin = Plugin
 local tostring = tostring 
 
-Plugin.Version = "0.3"
+Plugin.Version = "0.42"
 
 Plugin.HasConfig = true
 
@@ -244,6 +244,7 @@ end
 function Plugin:SetGameState( Gamerules, NewState, OldState )
     //Gamestart
     if NewState == 4 and OldState == 3 then
+         Plugin:addLog({action = "game_start"})
          Plugin:addPlayersToLog(0)
          RBPSgameFinished = 0
     end
@@ -713,7 +714,7 @@ function Plugin:createPlayerTable(client)
         newPlayer.ipaddress = "127.0.0.1"
     else
         newPlayer.ping = client:GetPing()
-        newPlayer.ipaddress = tostring(Server.GetClientAddress(client))
+        newPlayer.ipaddress = IPAddressToString(Server.GetClientAddress(client))
     end
     return newPlayer
     end
