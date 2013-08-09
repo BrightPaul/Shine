@@ -25,6 +25,7 @@ Plugin.DefaultConfig =
     ServerKey = "",
     IngameBrowser = true, // use ingame browser or Steamoverlay 
     Tags = {}, //Tags added to log  
+    SendTime = 10, //Send after how many min?
 }
 
 Plugin.CheckConfig = true
@@ -35,9 +36,12 @@ Plugin.Commands = {}
 //Shine.Hook.SetupClassHook( string Class, string Method, string HookName, "PassivePost" )
 
 Shine.Hook.SetupClassHook( "DamageMixin", "DoDamage", "OnDamageDealt", "PassivePost" )
-//todo Shine.Hook.SetupClassHook("ResearchMixin","TechResearched","OnTechResearched","PassivePost")
+Shine.Hook.SetupClassHook("ResearchMixin","TechResearched","OnTechResearched","PassivePost")
 Shine.Hook.SetupClassHook("ResearchMixin","SetResearching","OnTechStartResearch","PassivePre")
-Shine.Hook.SetupClassHook("Player","addHealth","OnPlayerGetHealed","PassivePost") 
+Shine.Hook.SetupClassHook("Player","addHealth","OnPlayerGetHealed","PassivePost")
+Shine.Hook.SetupClassHook("Structure","OnConstructionComplete","OnFinishedBuilt","PassivePost")
+Shine.Hook.SetupClassHook("ResearchMixin","OnResearchCancel","addUpgradeAbortedToLog","PassivePost")
+Shine.Hook.SetupClassHook("UpgradableMixin","RemoveUpgrade","addUpgradeLostToLog","PassivePost")    
    
 //Score datatable 
 local Assists={}
@@ -55,7 +59,7 @@ function Plugin:Initialise()
     self.Enabled = true
   
     if self.Config.ServerKey == "" then
-        Shared.SendHTTPRequest(self.Config.WebsiteUrl .. "/api/generateKey/?s=7g94389u3r89wujj3r892jhr9fwj", "GET",
+        Shared.SendHTTPRequest(Plugin.Config.WebsiteUrl .. "/api/generateKey/?s=7g94389u3r89wujj3r892jhr9fwj", "GET",
             function(response) Plugin:acceptKey(response) end)
     end
     Plugin:CreateCommands()
@@ -65,6 +69,22 @@ function Plugin:Initialise()
         local client = Server.GetOwner(fromPlayer)
         Plugin:addPlayerToTable(client)
     end
+    //Timers
+    //every 1 sec
+    //to update Weapondatas
+    Shine.Timer.Create( "WeaponUpdate", 1, -1, function()
+       local allPlayers = Shared.GetEntitiesWithClassname("Player")
+       for index, fromPlayer in ientitylist(allPlayers) do
+            local client = Server.GetOwner(fromPlayer)
+            Plugin:updateWeaponData(Plugin:getPlayerByClient(client))
+       end
+    end)
+
+    //every 10 min maybe add config later
+    //send datas to NS2StatsServer
+    Shine.Timer.Create( "SendStats", 60 * Plugin.Config.SendTime, -1, function()
+        Plugin:sendData()
+    end)
     return true //finished loading
 end
 
@@ -73,6 +93,8 @@ end
 //Damage Dealt Todo
 function Plugin:OnDamageDealt(Client, damage, target, point, direction, surface, altMode, showtracer)
     if Client then return end
+    //Debug
+    Notify("damage Dealt called")
     local attacker = Client:GetParent()
     local damageType = kDamageType.Normal
     if Client.GetDamageType then
@@ -168,27 +190,41 @@ function Plugin:OnConstructInit( Building )
     if not Owner then return end
 
     local Client = Server.GetOwner( Owner )
-    //Todo add to stats
+    local techId = Building:GetTechId()
+    local strloc = Building:GetOrigin()
+    local build=
+    {
+        action = "structure_dropped",
+        id = Building:GetId(),
+        steamId = Client:GetUserId(),
+        team = Building:GetTeamNumber(),
+        structure_cost = GetCostForTech(techId),
+        name = EnumToString(kTechId, techId),
+        structure_x = string.format("%.4f",strloc.x),
+        structure_y = string.format("%.4f",strloc.y),
+        structure_z = string.format("%.4f",strloc.z),
+    }
+    Plugin:addLog(build)
 end
 
 //Building built
-function  Plugin:OnFinishedBuilt( Building , Builder )
-    if Builder:isa("Player") then 
-        local strloc = Building:GetOrigin()
-        local build=
-        {
-            id = Building:GetId(),
-            builder_name = Builder:GetName(),
-            steamId = Builder:GetUserId(),
-            structure_cost=Building:GetPointCost(),
-            team = Building:GetTeamNumber(),
-            structure_name = Building:GetMapName(),
-            structure_x = tostring(strloc.x),
-            structure_y = tostring(strloc.y),
-            structure_z = tostring(strloc.z),
-        }
-        self:addLog(build)
-    end
+function  Plugin:OnFinishedBuilt(Building, builder)
+    local techId = Building:GetTechId()
+    local strloc = Building:GetOrigin()
+    local build=
+    {
+        action = "structure_built",
+        id = Building:GetId(),
+        builder_name = builder:GetName(),
+        steamId = builder:GetClient():GetUserId(),
+        structure_cost = GetCostForTech(techId),
+        team = Building:GetTeamNumber(),
+        structure_name = EnumToString(kTechId, techId),
+        structure_x = string.format("%.4f",strloc.x),
+        structure_y = string.format("%.4f",strloc.y),
+        structure_z = string.format("%.4f",strloc.z),
+    }
+    Plugin:addLog(build)
 end
 
 //Building recyled
@@ -197,49 +233,85 @@ function Plugin:OnBuildingRecycled( Building, ResearchID )
 end
 
 //Upgrade Stuff
-
+//todo
 //UpgradesStarted
-function Plugin:OnTechStartResearch(researchNode, player)
+function Plugin:OnTechStartResearch(ResearchMixin, researchNode, player)
     if player:isa("Commander") then
-        local client = Server.GetOwner(commander)
+    	local client = Server.GetOwner(player)
         local steamId = ""
         if client ~= nil then steamId = client:GetUserId() end
         local techId = researchNode:GetTechId()
 
         local newUpgrade =
         {
-        structure_id = researchnode:GetId(),
+        structure_id = ResearchMixin:GetId(),
         commander_steamid = steamId,
         team = player:GetTeamNumber(),
         cost = GetCostForTech(techId),
-        upgrade_name = Enumtostring(kTechId, techId),
+        upgrade_name = EnumToString(kTechId, techId),
         action = "upgrade_started"
         }
 
-        self:addLog(newUpgrade)
+        Plugin:addLog(newUpgrade)
     end
-
 end
 
+//temp to fix Uprades loged multiple times
+
+OldUpgrade = -1
 //Upgradefinished
-function Plugin:OnTechResearched( structure, researchId)
-    local upgrade =
+function Plugin:OnTechResearched( ResearchMixin,structure,researchId)
+    local researchNode = ResearchMixin:GetTeam():GetTechTree():GetTechNode(researchId)
+    local techId = researchNode:GetTechId()
+    if  techId == OldUpgrade then return end
+    OldUpgrade = techId
+    local newUpgrade =
     {
-        structure_id = structure:GetId(),
+        structure_id = ResearchMixin:GetId(),
         team = structure:GetTeamNumber(),
         commander_steamid = -1,
-        upgrade_name = tostring(GetDisplayNameForTechId(researchId)),
-        costs = GetCostForTech(researchId),
-        action ="upgrade_finished",    
+        cost = GetCostForTech(techId),
+        upgrade_name = EnumToString(kTechId, techId),
+        action = "upgrade_finished"
     }
-    self:addLog(upgrade)
-end
-// Game events
 
-//every servertick
-
-function Plugin:Think()    
+    Plugin:addLog(newUpgrade)
 end
+
+function Plugin:addUpgradeLostToLog(UpgradableMixin, techId)
+
+    local teamNumber = UpgradableMixin:GetTeamNumber()
+
+    local newUpgrade =
+    {
+        team = teamNumber,
+        cost = GetCostForTech(techId),
+        upgrade_name = EnumToString(kTechId, techId), 
+        action = "upgrade_lost"
+    }
+
+    RBPS:addLog(newUpgrade)
+
+end
+
+function Plugin:addUpgradeAbortedToLog(ResearchMixin, researchNode)
+    local techId = researchNode:GetTechId()
+    local steamid = Plugin:getTeamCommanderSteamid(ResearchMixin:GetTeamNumber())
+
+    local newUpgrade =
+    {
+        structure_id = ResearchMixin:GetId(),
+        team = ResearchMixin:GetTeamNumber(),
+        commander_steamid = steamid,
+        cost = GetCostForTech(techId),
+        upgrade_name = EnumToString(kTechId, techId),
+        action = "upgrade_aborted"
+    }
+
+    Plugin:addLog(newUpgrade)
+
+end
+// Game events 
 
 function Plugin:SetGameState( Gamerules, NewState, OldState )
     //Gamestart
@@ -254,8 +326,7 @@ function Plugin:SetGameState( Gamerules, NewState, OldState )
        local entityList = Shared.GetEntitiesWithClassname("NS2Gamerules")
        if entityList:GetSize() > 0 then
             NS2GR = entityList:GetEntityAtIndex(0)
-            //debug
-            Notify("NS2GR set")
+            //debug Notify("NS2GR set")
        else return end
        local allPlayers = Shared.GetEntitiesWithClassname("Player")
         //to update ScoreList
@@ -596,15 +667,15 @@ end
 
 //Damagetaken
 function Plugin:playerAddDamageTaken(attacker_steamId,target_steamId)
-for key,taulu in pairs(Plugin.Players) do	
-if taulu["steamId"] == target_steamId then
-//if steamid already in table then update, else add
-for k,d in pairs(taulu.damageTaken) do	
-if attacker_steamId == d.steamId then //reset timer	
-d.time = 0
-                    return
-end	
-         end
+    for key,taulu in pairs(Plugin.Players) do	
+        if taulu["steamId"] == target_steamId then
+        //if steamid already in table then update, else add
+            for k,d in pairs(taulu.damageTaken) do	
+                if attacker_steamId == d.steamId then //reset timer	
+                d.time = 0
+                                    return
+                end	
+             end
 
             //if we are still here we need to insert steamid into damageTaken
             table.insert(taulu.damageTaken,
@@ -613,9 +684,8 @@ end
                 time = 0
             })
             return
-end
-    end
-            
+        end
+    end            
 end
 
 
@@ -1303,33 +1373,33 @@ function Plugin:addDeathToLog(target, attacker, doer)
                 target_lifetime = string.format("%.4f", Shared.GetTime() - target:GetCreationTime())
             }
             
-            //Lis‰t‰‰n data json-muodossa logiin.
-            Plugin:addLog(deathLog)
+                //Lis‰t‰‰n data json-muodossa logiin.
+                Plugin:addLog(deathLog)
             
-            if attacker:GetTeamNumber() ~= target:GetTeamNumber() then
-                //add assists
-                Plugin:addAssists(attacker_client:GetUserId(),target_client:GetUserId(), string.format("%d", (target:GetPointValue()/2)))
-                
-                //addkill / display killstreaks
-                Plugin:addKill(attacker_client:GetUserId(),target_client:GetUserId())
-            end
+                if attacker:GetTeamNumber() ~= target:GetTeamNumber() then
+                    //add assists
+                    Plugin:addAssists(attacker_client:GetUserId(),target_client:GetUserId(), string.format("%d", (target:GetPointValue()/2)))
+                    
+                    //addkill / display killstreaks
+                    Plugin:addKill(attacker_client:GetUserId(),target_client:GetUserId())
+                end
             
-        else
---natural causes death
-if target:isa("Player") then
+            else
+                --natural causes death
+                if target:isa("Player") then
 
-if target.GetActiveWeapon and target:GetActiveWeapon() then
-                targetWeapon = target:GetActiveWeapon():GetMapName()
-end
-local deathLog =
-            {
-                //general
-                action = "death",
+                if target.GetActiveWeapon and target:GetActiveWeapon() then
+                                targetWeapon = target:GetActiveWeapon():GetMapName()
+                end
+                local deathLog =
+                            {
+                                //general
+                                action = "death",
 
-//Attacker
-attacker_weapon	= "natural causes",
+                //Attacker
+                attacker_weapon	= "natural causes",
 
-//Target
+                //Target
                 target_steamId = target_client:GetUserId(),
                 target_team = target:GetTeamType(),
                 target_weapon = targetWeapon,
@@ -1479,4 +1549,6 @@ end
 
 function Plugin:Cleanup()
     self.Enabled = false
+    Shine.Timer.Destroy("WeaponUpdate")
+    Shine.Timer.Destroy("SendStats")
 end
