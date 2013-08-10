@@ -54,6 +54,8 @@ RBPSsuccessfulSends = 0
 RBPSresendCount = 0
 Gamestarted = 0
 RBPSgameFinished = 0
+//Gamer started yet?
+GameStarted = false
 
 function Plugin:Initialise()
     self.Enabled = true
@@ -207,6 +209,8 @@ end
 
 //Building built
 function  Plugin:OnFinishedBuilt(ConstructMixin, builder)
+    //fix logging before round has started
+    if not GameStarted then return end
     local techId = ConstructMixin:GetTechId()
     local strloc = ConstructMixin:GetOrigin()
     local client = Server.GetOwner(builder)
@@ -322,13 +326,14 @@ end
 
 function Plugin:SetGameState( Gamerules, NewState, OldState )
     //Gamestart
-    if NewState == 4 and OldState == 3 then
+    if NewState == 4 and OldState == 3 then   
          Plugin:addLog({action = "game_start"})
          Plugin:addPlayersToLog(0)
          RBPSgameFinished = 0
+         GameStarted = true
     end
     //Gameend
-    if OldState == 4 and (NewState == 5 or NewState == 6) then
+    if OldState == 4 and (NewState == 5 or NewState == 6) then       
        local NS2GR = nil
        local entityList = Shared.GetEntitiesWithClassname("NS2Gamerules")
        if entityList:GetSize() > 0 then
@@ -342,6 +347,7 @@ function Plugin:SetGameState( Gamerules, NewState, OldState )
             Plugin:UpdatePlayerInTable(client)
         end	
         RBPSgameFinished = 1
+        GameStarted = false
         Plugin:addPlayersToLog(1)
         local winningTeam = 0
         //Todo 
@@ -1472,17 +1478,15 @@ attacker_steamId = attacker_client:GetUserId(),
     
     end
 end
-//Todo: add more needed things
+
+//Adds server infos
 function Plugin:AddServerInfos(params)
-    local mods = ""
-    local numMods = Server.GetNumActiveMods()
-    if numMods > 0 then
-         for i = 1,numMods do
-                if Server.GetActiveModId(i) ~= nil then
-                    mods= mods .."," .. Server.GetModTitle(i)
-                end
-         end
-    end
+    local mods = "" 
+    for i = 1, Server.GetNumMods() do
+        // if Server.GetIsModActive(i) then maybe in future
+        mods = mods ..Server.GetModTitle(i) .. ","
+        //end
+    end 
     params.action = "game_ended"
     params.statsVersion = Plugin.Version
     params.serverName = Server.GetName()
@@ -1492,7 +1496,7 @@ function Plugin:AddServerInfos(params)
     params.awards = {} //added later
     params.tags = self.Config.Tags
     params.private = false
-    params.autoarrange = false //use Sh plugin setting later?
+    params.autoarrange = false //use Shine plugin settings later?
     params.serverInfo =
     {
         password = "",
