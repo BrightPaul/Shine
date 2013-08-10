@@ -1531,7 +1531,7 @@ function Plugin:CreateCommands()
     local ShowSStats = self:BindCommand( "sh_showserverstats", "showserverstats", function(Client)
         Shared.SendHTTPRequest( self.Config.WebsiteApiUrl .. "/server?key=" .. self.Config.ServerKey,"GET",function( Response, Status)
             local Data = Decode( Response )
-            if if Data == nil then return end
+            if Data == nil then return end
             local serverid = Data.id or ""             
             local url= self.Config.WebsiteUrl .. "/server/server/" .. serverid
     	    if self.Config.IngameBrowser then Server.SendNetworkMessage( Client, "Shine_Web", { URL = url }, true )
