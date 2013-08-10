@@ -6,7 +6,8 @@ local Shine = Shine
 local Notify = Shared.Message
 
 local Plugin = Plugin
-local tostring = tostring 
+local tostring = tostring
+local Decode = json.decode 
 
 Plugin.Version = "0.42"
 
@@ -30,8 +31,6 @@ Plugin.DefaultConfig =
 
 Plugin.CheckConfig = true
 
-Plugin.Commands = {}
-
 //TODO: add all Hooks here
 //Shine.Hook.SetupClassHook( string Class, string Method, string HookName, "PassivePost" )
 
@@ -54,17 +53,19 @@ RBPSsuccessfulSends = 0
 RBPSresendCount = 0
 Gamestarted = 0
 RBPSgameFinished = 0
-//Gamer started yet?
+//Game started yet?
 GameStarted = false
 
 function Plugin:Initialise()
     self.Enabled = true
-  
+    
     if self.Config.ServerKey == "" then
         Shared.SendHTTPRequest(Plugin.Config.WebsiteUrl .. "/api/generateKey/?s=7g94389u3r89wujj3r892jhr9fwj", "GET",
             function(response) Plugin:acceptKey(response) end)
     end
-    Plugin:CreateCommands()
+    
+    //register Commands
+     Plugin:CreateCommands()
     //toget all Player into scorelist
     local allPlayers = Shared.GetEntitiesWithClassname("Player")
     for index, fromPlayer in ientitylist(allPlayers) do
@@ -1092,7 +1093,7 @@ end
 
 function Plugin:addPlayerJoinedTeamToLog(player, newTeamNumber)
 
-    //	local client = Server.GetOwner(player)
+    local client = Server.GetOwner(player)
 
             
     local playerJoin =
@@ -1100,7 +1101,7 @@ function Plugin:addPlayerJoinedTeamToLog(player, newTeamNumber)
         action="player_join_team",
         name = player.name,
         team=newTeamNumber,
-        steamId = player.steamId,
+        steamId = client:GetUserId(),
         score = player.score
     }
         Plugin:addLog(playerJoin)
@@ -1507,56 +1508,46 @@ function Plugin:AddServerInfos(params)
     Plugin:addLog(params) 
 end
 
-//Command Methods
+//Cleanup
 
-//open Ingame_Browser with given Player Stats
-function Plugin:ShowPlayerStats(Client)
-    local playerid = Client:GetUserID()
-    local url = self.Config.Websiteurl .. "/player/player/" .. tostring(playerid)
-    if self.Config.IngameBrowser then Server.SendNetworkMessage( Client, "Shine_Web", { URL = url }, true )
-    else Client.ShowWebpage(url)
-    end
-end
 
-//open Ingame_Browser with Server Stats
-function Plugin:ShowServerStats(Client)
-        local url= self.Config.Websiteurl .. "/server/server/" // + to string(self.Config.serverid)
-    	if self.Config.IngameBrowser then Server.SendNetworkMessage( Client, "Shine_Web", { URL = url }, true )
-    	else Client.ShowWebpage(url) end
-end
-
-// set commanduser as admin at ns2stats
-function Plugin:SetAdminAtNS2Stats(Client)
-if Shine:HasAccess( Client, "sh_verify" ) then
-    Shared.SendHTTPRequest(self.Config.WebsiteUrl .. "/api/verifyServer/" .. Client:GetUserId() .. "?s=479qeuehq2829&key=" .. self.Config.ServerKey, "GET",
-        function(response) ServerAdminPrint(Client,response) end) end
-end
-
-//register Commands
 //Commands
 function Plugin:CreateCommands()
-    local function PlayerStats(Client)
-        if not Client then return end
-        Plugin:ShowPlayerStats( Client )
-    end
-    local ShowPStats = Plugin:BindCommand( "sh_showplayerstats", {"showplayerstats","showstats" }, PlayerStats , true)
+    
+    local ShowPStats = self:BindCommand( "sh_showplayerstats", {"showplayerstats","showstats" }, function(Client)
+        Shared.SendHTTPRequest( self.Config.WebsiteApiUrl .. "/player?ns2_id=" .. tostring(Client:GetUserId()), "GET",function( Response, Status)   
+            local Data = Decode(Response)
+            if Data == nil then return end
+                local playerid = Data.player_page_id or ""
+                local url = self.Config.WebsiteUrl .. "/player/player/" .. playerid
+                if self.Config.IngameBrowser then Server.SendNetworkMessage( Client, "Shine_Web", { URL = url }, true )
+                else Client.ShowWebpage(url)
+                end
+        end)      
+    end)
     // ShowPStats:AddParam{ Type = "string",Optimal = true ,TakeRestOfLine = true,Default ="", MaxLength = kMaxChatLength}
     ShowPStats:Help("Shows stats of given <player> or if no given <player> from yourself")
-    local function ServerStats(Client)
-        if not Client then return end
-        Plugin:ShowServerStats(Client)
-    end
-    local ShowSStats = Plugin:BindCommand( "sh_showserverstats", "showserverstats", ServerStats,true)
+    
+    local ShowSStats = self:BindCommand( "sh_showserverstats", "showserverstats", function(Client)
+        Shared.SendHTTPRequest( self.Config.WebsiteApiUrl .. "/server?key=" .. self.Config.ServerKey,"GET",function( Response, Status)
+            local Data = Decode( Response )
+            if if Data == nil then return end
+            local serverid = Data.id or ""             
+            local url= self.Config.WebsiteUrl .. "/server/server/" .. serverid
+    	    if self.Config.IngameBrowser then Server.SendNetworkMessage( Client, "Shine_Web", { URL = url }, true )
+    	    else Client.ShowWebpage(url) end
+        end)        
+    end)
     ShowSStats:Help("Shows server stats")
-    local function AdminAtNS2Stats (Client)
-        if not Client then return end
-        Plugin:SetAdminAtNS2Stats(Client)
-    end
-    local Verify = Plugin:BindCommand( "sh_verify", {"verifystats","verify"},AdminAtNS2Stats)
+    
+    local Verify = self:BindCommand( "sh_verify", {"verifystats","verify"},function(Client)
+        if Shine:HasAccess( Client, "sh_verify" ) then
+            Shared.SendHTTPRequest(self.Config.WebsiteUrl .. "/api/verifyServer/" .. Client:GetUserId() .. "?s=479qeuehq2829&key=" .. self.Config.ServerKey, "GET",
+            function(response) ServerAdminPrint(Client,response) end)
+        end
+    end)
     Verify:Help ("Sets yourself as serveradmin at NS2Stats.com")
 end
-
-//Cleanup
 
 function Plugin:Cleanup()
     self.Enabled = false
