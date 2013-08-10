@@ -39,7 +39,7 @@ Shine.Hook.SetupClassHook( "DamageMixin", "DoDamage", "OnDamageDealt", "PassiveP
 Shine.Hook.SetupClassHook("ResearchMixin","TechResearched","OnTechResearched","PassivePost")
 Shine.Hook.SetupClassHook("ResearchMixin","SetResearching","OnTechStartResearch","PassivePre")
 Shine.Hook.SetupClassHook("Player","addHealth","OnPlayerGetHealed","PassivePost")
-Shine.Hook.SetupClassHook("Structure","OnConstructionComplete","OnFinishedBuilt","PassivePost")
+Shine.Hook.SetupClassHook("ConstructMixin","SetConstructionComplete","OnFinishedBuilt","PassivePost")
 Shine.Hook.SetupClassHook("ResearchMixin","OnResearchCancel","addUpgradeAbortedToLog","PassivePost")
 Shine.Hook.SetupClassHook("UpgradableMixin","RemoveUpgrade","addUpgradeLostToLog","PassivePost")    
    
@@ -91,14 +91,12 @@ end
 //All the Damage/Player Stuff
 
 //Damage Dealt Todo
-function Plugin:OnDamageDealt(Client, damage, target, point, direction, surface, altMode, showtracer)
-    if Client then return end
-    //Debug
-    Notify("damage Dealt called")
-    local attacker = Client:GetParent()
+function Plugin:OnDamageDealt(DamageMixin, damage, target, point, direction, surface, altMode, showtracer)
+    //Debug Notify("damage Dealt called")
+    local attacker = DamageMixin:GetParent()
     local damageType = kDamageType.Normal
-    if Client.GetDamageType then
-            damageType = Client:GetDamageType() end
+    if DamageMixin.GetDamageType then
+            damageType = DamageMixin:GetDamageType() end
     local doer = attacker:GetActiveWeapon() 
     Plugin:addHitToLog(target, attacker, doer, damage, damageType)
 end
@@ -208,17 +206,26 @@ function Plugin:OnConstructInit( Building )
 end
 
 //Building built
-function  Plugin:OnFinishedBuilt(Building, builder)
-    local techId = Building:GetTechId()
-    local strloc = Building:GetOrigin()
+function  Plugin:OnFinishedBuilt(ConstructMixin, builder)
+    local techId = ConstructMixin:GetTechId()
+    local strloc = ConstructMixin:GetOrigin()
+    local client = Server.GetOwner(builder)
+    local steamId = -1
+    local buildername = ""
+
+    if client ~= nil then
+        steamId = client:GetUserId()
+        buildername = builder:GetName()
+    end
+    
     local build=
     {
         action = "structure_built",
-        id = Building:GetId(),
-        builder_name = builder:GetName(),
-        steamId = builder:GetClient():GetUserId(),
+        id = ConstructMixin:GetId(),
+        builder_name = buildername,
+        steamId = steamId,
         structure_cost = GetCostForTech(techId),
-        team = Building:GetTeamNumber(),
+        team = ConstructMixin:GetTeamNumber(),
         structure_name = EnumToString(kTechId, techId),
         structure_x = string.format("%.4f",strloc.x),
         structure_y = string.format("%.4f",strloc.y),
