@@ -90,7 +90,7 @@ function Plugin:Initialise()
     //every 10 min maybe add config later
     //send datas to NS2StatsServer
     Shine.Timer.Create( "SendStats", 60 * Plugin.Config.SendTime, -1, function()
-        Plugin:sendData()
+        if Plugin.Config.Statsonline then Plugin:sendData() end
     end)
     return true //finished loading
 end
@@ -349,57 +349,46 @@ end
 
 function Plugin:SetGameState( Gamerules, NewState, OldState )
     //Gamestart
-    if NewState == 4 and OldState == 3 then 
-         RBPSlogPartNumber = 1  
+    if NewState == kGameState.Started then 
          Plugin:addLog({action = "game_start"})
          Plugin:addPlayersToLog(0)
-         RBPSgameFinished = 0
          GameStarted = true
     end
-    //Gameend
-    if OldState == 4 and (NewState == 5 or NewState == 6) then       
-       local NS2GR = nil
-       local entityList = Shared.GetEntitiesWithClassname("NS2Gamerules")
-       if entityList:GetSize() > 0 then
-            NS2GR = entityList:GetEntityAtIndex(0)
-            //debug Notify("NS2GR set")
-       else return end
+end
+ //Gameend
+function Plugin:EndGame( Gamerules, WinningTeam )     
        local allPlayers = Shared.GetEntitiesWithClassname("Player")
         //to update ScoreList
-       for index, fromPlayer in ientitylist(allPlayers) do
+        for index, fromPlayer in ientitylist(allPlayers) do
             local client = Server.GetOwner(fromPlayer)
             Plugin:UpdatePlayerInTable(client)
         end	
+        
         RBPSgameFinished = 1
         GameStarted = false
         Plugin:addPlayersToLog(1)
-        local winningTeam = 0
-        if NewState == 5 then
-                    winningTeam = 2
-        elseif NewState == 6 then
-                    winningTeam = 1
-        end
-        //debug Notify("Winning Team: " .. winningTeam)        
+      
         local initialHiveTechIdString = "None"
             
-            if NS2GR.initialHiveTechId then
-                    initialHiveTechIdString = EnumToString(kTechId, NS2GR.initialHiveTechId)
+            if Gamerules.initialHiveTechId then
+                    initialHiveTechIdString = EnumToString(kTechId, Gamerules.initialHiveTechId)
             end
             
             local params =
                 {
                     version = ToString(Shared.GetBuildNumber()),
-                    winner = ToString(winningTeam),
-                    length = string.format("%.2f", Shared.GetTime() - NS2GR.gameStartTime),
+                    winner = WinningTeam:GetTeamNumber(),
+                    length = string.format("%.2f", Shared.GetTime() - Gamerules.gameStartTime),
                     map = Shared.GetMapName(),
-                    start_location1 = NS2GR.startingLocationNameTeam1,
-                    start_location2 = NS2GR.startingLocationNameTeam2,
-                    start_path_distance = NS2GR.startingLocationsPathDistance,
+                    start_location1 = Gamerules.startingLocationNameTeam1,
+                    start_location2 = Gamerules.startingLocationNameTeam2,
+                    start_path_distance = Gamerules.startingLocationsPathDistance,
                     start_hive_tech = initialHiveTechIdString,
                 }
+        //debug
+        Notify("Server infos on the way")
         Plugin:AddServerInfos(params)
-        if Plugin.Config.Statsonline then Plugin:sendData() end //senddata also clears log
-    end
+        if Plugin.Config.Statsonline then Plugin:sendData() RBPSgameFinished = 0  RBPSlogPartNumber = 1   end //senddata also clears log
     
 end
 
@@ -775,7 +764,8 @@ function Plugin:addPlayerToTable(client)
     if not client then return end
     if Plugin:IsClientInTable(client) == false then	
         table.insert(Plugin.Players, Plugin:createPlayerTable(client))
-        //debug Notify(client:GetPlayer():GetName() .. " has been added to Players")        
+        //debug
+        Notify(client:GetPlayer():GetName() .. " has been added to Players")        
     else
         Plugin:setConnected(client)
 end
@@ -1276,8 +1266,7 @@ end
 function Plugin:addHitToLog(target, attacker, doer, damage, damageType)
     if not Server then return end
     if not attacker or not doer or not target then return end
-        
-   
+  
     local targetWeapon = "none"
     local RBPSplayer = nil
     local RBPStargetPlayer = nil
@@ -1337,6 +1326,8 @@ function Plugin:addHitToLog(target, attacker, doer, damage, damageType)
         
         Plugin:playerAddDamageTaken(RBPSplayer.steamId,RBPStargetPlayer.steamId)
         // Add Attacker as possible Assist
+        //Both Players ?
+        if target:GetClient() == nil or attacker:GetClient() == nil then return end
         if Plugin.Assists[Plugin:GetId(target:GetClient())] == nil then Plugin.Assists[Plugin:GetId(target:GetClient())] = {} end
         Plugin.Assists[Plugin:GetId(target:GetClient())][Plugin:GetId(attacker:GetClient())] = true
         
@@ -1537,8 +1528,10 @@ function Plugin:AddServerInfos(params)
         IP = IPAddressToString(Server.GetIpAddress()),
         count = 30 //servertick?
     }
-    
-    Plugin:addLog(params) 
+    Plugin:addLog(params)
+    //debug
+    Notify("[NS2Stats]: Serverinfos added")
+
 end
 
 //Cleanup
