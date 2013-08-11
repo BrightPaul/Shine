@@ -26,7 +26,7 @@ Plugin.DefaultConfig =
     ServerKey = "",
     IngameBrowser = true, // use ingame browser or Steamoverlay 
     Tags = {}, //Tags added to log  
-    SendTime = 10, //Send after how many min?
+    SendTime = 1, //Send after how many min?
 }
 
 Plugin.CheckConfig = true
@@ -1596,7 +1596,7 @@ function Plugin:GetId(Client)
     end
     //to differ between e.g. name and name (2)
     newId = string.reverse(newId)
-    newId = string.sub(newId, 1 , 6)  
+    newId = string.sub(newId, 1 , 10)  
     //make a int
     newId = tonumber(newId)
     return newId
