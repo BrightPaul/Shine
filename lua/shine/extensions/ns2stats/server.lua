@@ -47,7 +47,7 @@ Shine.Hook.SetupClassHook("DropPack","OnTouch","OnPickableItemPicked","PassivePo
  
    
 //Score datatable 
-local Assists={}
+Plugin.Assists = {}
 Plugin.Players = {}
 
 //values needed by NS2Stats
@@ -178,7 +178,7 @@ end
 function Plugin:OnPlayerGetHealed( Player )
     // player Backed Up?
     if Player:getHealth() >= 0.8 * Player:getmaxHealth() then
-        table.Empty(Assists[Plugin:GetId(Player)]) //drop Assists
+        table.Empty(Plugin.Assists[Plugin:GetId(Player:GetClient())]) //drop Assists
     end
 end
 
@@ -186,7 +186,8 @@ end
 
 //Resource gathered
 function Plugin:OnTeamGetResources(PlayingTeam, amount)
-
+    //fix ress tracking before round has started
+    if not GameStarted then return end
     local newResourceGathered =
     {
         team = PlayingTeam:GetTeamNumber(),
@@ -373,14 +374,12 @@ function Plugin:SetGameState( Gamerules, NewState, OldState )
         GameStarted = false
         Plugin:addPlayersToLog(1)
         local winningTeam = 0
-        //Todo 
         if NewState == 5 then
                     winningTeam = 2
         elseif NewState == 6 then
                     winningTeam = 1
         end
-        //debug
-        Notify("Winning Team: " .. winningTeam)
+        //debug Notify("Winning Team: " .. winningTeam)        
         local initialHiveTechIdString = "None"
             
             if NS2GR.initialHiveTechId then
@@ -406,7 +405,8 @@ end
 
 //PlayerConnected
 function Plugin:ClientConnect( Client )
-    if not Client then return end
+    //filter Bots
+    if not Client or Client:GetIsVirtual() then return end   
     Plugin:addPlayerToTable(Client)
     Plugin:setConnected(Client)
 end
@@ -414,7 +414,7 @@ end
 //PlayerDisconnect
 function Plugin:ClientDisconnect(Client)
     if not Client then return end
-    local Player = Client:GetControllingPlayer()
+    local Player = Client:GetPlayer()
     if not Player then return end
     local connect={
             action = "disconnect",
@@ -431,6 +431,7 @@ function Plugin:PostJoinTeam( Gamerules, Player, NewTeam, Force )
     //filter those unnamed Bots
     if Client:GetIsVirtual() and string.find(tostring(Player:GetName()),"[BOT]",nil,true) == nil then
     return end
+    Plugin:addPlayerToTable(Client)
     Plugin:addPlayerJoinedTeamToLog(Player, NewTeam) 
     Plugin:UpdatePlayerInTable(Client)
 end
@@ -643,7 +644,7 @@ Shared.SendHTTPRequest(self.Config.WebsiteStatusUrl, "POST", params, function(re
 end
 function Plugin:UpdatePlayerInTable(client)
     if not client then return end
-    local player = client:GetControllingPlayer()
+    local player = client:GetPlayer()
     local steamId = Plugin:GetId(client)
     local origin = player:GetOrigin()
     local weapon = "none"
@@ -679,9 +680,9 @@ function Plugin:UpdatePlayerInTable(client)
 
             for k,d in pairs(taulu.damageTaken) do	
                 d.time = d.time +1
-                if d.time > RBPSassistTime then
+                /*todo if d.time > RBPSassistTime then
                                     table.remove(taulu.damageTaken,k)	
-                end
+                end*/
             end
         end
     //<<
@@ -699,21 +700,17 @@ function Plugin:addKill(attacker_steamId,target_steamId)
             if taulu.killstreak > taulu.highestKillstreak then
                 taulu.highestKillstreak = taulu.killstreak
             end
-        end
-
+        elseif  Plugin.Assists[target_steamId] ~= nil then
+            if Plugin.Assists[target_steamId][taulu.steamId] ~= nil then
+                if Plugin.Assists[target_steamId][taulu.steamId]== true then Plugin.addAssists(taulu.steamId,target_steamId) end
+            end
+        end      
+        
         if taulu["steamId"] == target_steamId then	
             taulu.deaths = taulu.deaths +1	
         end
+        
     end
-    
-        if Assists[target_steamId] ~= nil then
-            table.remove(Assists[target_steamId], attacker_steamId)
-            if Assists[target_steamId] ~= nil then
-                for i = 1,#Assists[target_steamId] do
-                    Plugin:addAssists(Assists[target_steamid][i],target_steamId,"0")    
-                end
-            end
-        end
 end
 
 //Todo: Multikills ?
@@ -723,7 +720,7 @@ function Plugin:checkForMultiKills(name,streak)
 end
 
 //To redo: assists
-function Plugin:addAssists(attacker_steamId,target_steamId, value)
+function Plugin:addAssists(attacker_steamId,target_steamId)
     for key,taulu in pairs(Plugin.Players) do
         if taulu["steamId"] == target_steamId then
             for k,d in pairs(taulu.damageTaken) do	
@@ -731,15 +728,14 @@ function Plugin:addAssists(attacker_steamId,target_steamId, value)
                     //add assist
                     local client = Plugin:getPlayerClientBySteamId(d.steamId)
                     if client then //player might have disconnected
-                        local player = client:GetControllingPlayer()
+                        local player = client:GetPlayer()
                         
                         if player then
-                            local pointValue = Plugin:getPlayerClientBySteamId(target_steamId):GetControllingPlayer():GetPointValue()*0.5
+                            local pointValue = Plugin:getPlayerClientBySteamId(target_steamId):GetPlayer():GetPointValue()*0.5
                             // player:AddAssist() //RBPSplayer entity should update 1 second later automatically
                             player:AddScore(pointValue)
-                            if  Assists[d.steamId] == nil then Assists[d.steamId] = 0 end
-                            Assists[d.steamId]= Assists[d.steamId] + 1
-                            taulu["assists"] = Assists[d.steamId]
+                            taulu["assists"] = taulu["assists"] + 1
+                            Plugin.Assists[target_steamId][attacker_steamId] = false
                         end
                     end
                 end
@@ -778,7 +774,8 @@ end
 function Plugin:addPlayerToTable(client)
     if not client then return end
     if Plugin:IsClientInTable(client) == false then	
-        table.insert(Plugin.Players, Plugin:createPlayerTable(client))	
+        table.insert(Plugin.Players, Plugin:createPlayerTable(client))
+        //debug Notify(client:GetPlayer():GetName() .. " has been added to Players")        
     else
         Plugin:setConnected(client)
 end
@@ -804,7 +801,7 @@ function Plugin:getNumberOfConnectedPlayers()
 end
 
 function Plugin:createPlayerTable(client)	
-    local player = client:GetControllingPlayer()
+    local player = client:GetPlayer()
     if player == nil then
         Notify("Tried to update nil player")
     return
@@ -1109,8 +1106,8 @@ function Plugin:getPlayerByClient(client)
     if type(client["GetUserId"]) ~= "nil" then
         steamId = Plugin:GetId(client)
     else
-        if type(client["GetControllingPlayer"]) ~= "nil" then
-                local player = client:GetControllingPlayer()
+        if type(client["GetPlayer"]) ~= "nil" then
+                local player = client:GetPlayer()
                 local name = player:GetName()
             else
                 return
@@ -1340,7 +1337,9 @@ function Plugin:addHitToLog(target, attacker, doer, damage, damageType)
         
         Plugin:playerAddDamageTaken(RBPSplayer.steamId,RBPStargetPlayer.steamId)
         // Add Attacker as possible Assist
-        table.insert( Assists[hit.target_steamId] , hit.attacker_steamId)
+        if Plugin.Assists[Plugin:GetId(target:GetClient())] == nil then Plugin.Assists[Plugin:GetId(target:GetClient())] = {} end
+        Plugin.Assists[Plugin:GetId(target:GetClient())][Plugin:GetId(attacker:GetClient())] = true
+        
         
     else //target is a structure
         local structureOrigin = target:GetOrigin()
