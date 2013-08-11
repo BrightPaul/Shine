@@ -348,7 +348,8 @@ end
 
 function Plugin:SetGameState( Gamerules, NewState, OldState )
     //Gamestart
-    if NewState == 4 and OldState == 3 then   
+    if NewState == 4 and OldState == 3 then 
+         RBPSlogPartNumber = 1  
          Plugin:addLog({action = "game_start"})
          Plugin:addPlayersToLog(0)
          RBPSgameFinished = 0
@@ -398,8 +399,7 @@ function Plugin:SetGameState( Gamerules, NewState, OldState )
                     start_hive_tech = initialHiveTechIdString,
                 }
         Plugin:AddServerInfos(params)
-        // if self.Config.Statsonline then Plugin:sendData() end //senddata also clears log
-        Plugin:sendData() 
+        if Plugin.Config.Statsonline then Plugin:sendData() end //senddata also clears log
     end
     
 end
@@ -464,13 +464,11 @@ function Plugin:OnPickableItemCreated(item)
 
     local techId = item:GetTechId()
     local structureOrigin = item:GetOrigin()
-    local InstaHit = ""
-    if item:_GetNearbyRecipient() ~= nil then InstaHit = true else InstaHit = false end
     local steamid = Plugin:getTeamCommanderSteamid(item:GetTeamNumber())
     local newItem =
     {
         commander_steamid = steamid,
-        instanthit = InstaHit,
+        instanthit = false,
         id = item:GetId(),
         cost = GetCostForTech(techId),
         team = item:GetTeamNumber(),
@@ -1385,11 +1383,8 @@ function Plugin:addDeathToLog(target, attacker, doer)
         local attackerOrigin = attacker:GetOrigin()
         local targetWeapon = "none"
         local targetOrigin = target:GetOrigin()
-        local attacker_client = attacker
-        if not attacker:isa("Client") then attacker_client = attacker:GetClient()
-        end
-        local target_client = target
-        if not target:isa("Client") then target_client = target:GetClient() end
+        local attacker_client = Server.GetOwner(attacker)
+        local target_client = Server.GetOwner(target)
         
         if target.GetActiveWeapon and target:GetActiveWeapon() then
                 targetWeapon = target:GetActiveWeapon():GetMapName()
@@ -1472,7 +1467,7 @@ function Plugin:addDeathToLog(target, attacker, doer)
     end
     else //suicide
         local target_client = target
-        if not target:isa("Client") then target_client = target:GetClient() end        
+        target_client = Server.GetOwner(target)        
         local targetWeapon = "none"
         local targetOrigin = target:GetOrigin()
         local attacker_client = Server.GetOwner(target) //easy way out
@@ -1602,7 +1597,9 @@ function Plugin:GetId(Client)
     end
     //to differ between e.g. name and name (2)
     newId = string.reverse(newId)
-    newId = string.sub(newId, 1 , 6)    
+    newId = string.sub(newId, 1 , 6)  
+    //make a int
+    newId = tonumber(newId)
     return newId
 end
 
