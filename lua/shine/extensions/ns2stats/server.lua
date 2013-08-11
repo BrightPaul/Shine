@@ -407,6 +407,9 @@ end
 function Plugin:PostJoinTeam( Gamerules, Player, NewTeam, Force )
     if not Player then return end
     local Client = Player:GetClient()
+    //filter those unnamed Bots
+    if Client:GetIsVirtual() and string.find(tostring(Player:GetName()),"[BOT]",nil,true) == nil then
+    return end
     Plugin:addPlayerJoinedTeamToLog(Player, NewTeam) 
     Plugin:UpdatePlayerInTable(Client)
 end
@@ -1545,6 +1548,8 @@ function Plugin:GetId(Client)
         local num = string.find(letters,char,nil,true)
         newId = newId .. tostring(num)        
     end
+    //to differ between e.g. name and name (2)
+    newId = string.reverse(newId)
     newId = string.sub(newId, 1 , 6)    
     return newId
 end
