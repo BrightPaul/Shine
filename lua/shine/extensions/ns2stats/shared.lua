@@ -35,3 +35,8 @@ Shine.VoteMenu:EditPage( "Main", function( self )
         end)       
     end
 end )
+
+function Plugin:Cleanup()
+    self.Enabled = false
+end
+
