@@ -388,7 +388,11 @@ function Plugin:EndGame( Gamerules, WinningTeam )
         //debug
         Notify("Server infos on the way")
         Plugin:AddServerInfos(params)
-        if Plugin.Config.Statsonline then Plugin:sendData() RBPSgameFinished = 0  RBPSlogPartNumber = 1   end //senddata also clears log
+        if Plugin.Config.Statsonline then Plugin:sendData()  end //senddata also clears log
+        //Resets all Stats
+        RBPSgameFinished = 0
+        RBPSlogPartNumber = 1
+        Plugin:clearPlayersTable()
     
 end
 
@@ -410,7 +414,7 @@ function Plugin:ClientDisconnect(Client)
             steamId = Plugin:GetId(Client),
             score = Player.score
     }
-    self:addLog(connect)
+    Plugin:addLog(connect)
 end
 
 // Player joins a team
