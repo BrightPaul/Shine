@@ -17,10 +17,10 @@ Plugin.ConfigName = "Ns2Stats.json"
 Plugin.DefaultConfig =
 {
     Statsonline = true, // Upload stats?
-    WebsiteUrl = "http://ns2stats.org", //this is url which is shown in player private messages, so its for advertising
-    WebsiteDataUrl = "http://ns2stats.org/api/sendlog", //this is url where posted data is send and where it is parsed into database
-    WebsiteStatusUrl="http://ns2stats.org/api/sendstatus", //this is url where posted data is send on status sends
-    WebsiteApiUrl = "http://ns2stats.org/api",
+    WebsiteUrl = "http://ns2stats.com", //this is url which is shown in player private messages, so its for advertising
+    WebsiteDataUrl = "http://ns2stats.com/api/sendlog", //this is url where posted data is send and where it is parsed into database
+    WebsiteStatusUrl="http://ns2stats.com/api/sendstatus", //this is url where posted data is send on status sends
+    WebsiteApiUrl = "http://ns2stats.com/api",
     Assists = true, // Track assists?
     Awards = true, //show award (todo)
     ServerKey = "",
