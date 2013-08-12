@@ -44,6 +44,8 @@ Shine.Hook.SetupClassHook("UpgradableMixin","RemoveUpgrade","addUpgradeLostToLog
 Shine.Hook.SetupClassHook("PlayingTeam","AddTeamResources","OnTeamGetResources","PassivePost") 
 Shine.Hook.SetupClassHook("DropPack","OnCreate","OnPickableItemCreated","PassivePost") 
 Shine.Hook.SetupClassHook("DropPack","OnTouch","OnPickableItemPicked","PassivePost")
+Shine.Hook.SetupClassHook("PlayerBot","UpdateName","OnBotRenamed","PassivePost")
+Shine.Hook.SetupClassHook("Player","SetName","PlayerNameChange","PassivePost")
  
    
 //Score datatable 
@@ -397,11 +399,9 @@ function Plugin:EndGame( Gamerules, WinningTeam )
 end
 
 //PlayerConnected
-function Plugin:ClientConnect( Client )
-    //filter Bots
-    if not Client or Client:GetIsVirtual() then return end   
+function Plugin:ClientConfirmConnect( Client )
+    if not Client then return end   
     Plugin:addPlayerToTable(Client)
-    Plugin:setConnected(Client)
 end
 
 //PlayerDisconnect
@@ -416,16 +416,18 @@ function Plugin:ClientDisconnect(Client)
     }
     Plugin:addLog(connect)
 end
+//Bots renamed
+function Plugin:OnBotRenamed(Bot)
+    if Plugin:getPlayerByClient(Bot:GetPlayer():GetClient()) == nil then
+    Plugin:ClientConfirmConnect(Bot:GetPlayer():GetClient()) end       
+end
 
 // Player joins a team
 function Plugin:PostJoinTeam( Gamerules, Player, NewTeam, Force )
     if not Player then return end
     local Client = Player:GetClient()
-    //filter those unnamed Bots
-    if Client:GetIsVirtual() and string.find(tostring(Player:GetName()),"[BOT]",nil,true) == nil then
-    return end
-    Plugin:addPlayerToTable(Client)
-    Plugin:addPlayerJoinedTeamToLog(Player, NewTeam) 
+    Plugin:addPlayerJoinedTeamToLog(Player)
+     
     Plugin:UpdatePlayerInTable(Client)
 end
 
@@ -433,6 +435,8 @@ end
 function Plugin:PlayerNameChange( Player, Name, OldName )
     if not Player then return end
     local Client = Player:GetClient()
+    if Client == nil then return end
+    if Client:GetIsVirtual() then return end
     Plugin:UpdatePlayerInTable(Client)
 end
 
@@ -644,7 +648,7 @@ function Plugin:UpdatePlayerInTable(client)
    
     for key,taulu in pairs(Plugin.Players) do
         --Jos taulun(pelaajan) steamid on sama kuin etsitt‰v‰ niin p‰ivitet‰‰n tiedot.
-        if (taulu["isbot"] == false and taulu["steamId"] == steamId) or (taulu["isbot"] == true and taulu["name"] == player:GetName()) then
+        if  taulu["steamId"] == steamId  then
             taulu = Plugin:checkTeamChange(taulu,player)
             taulu = Plugin:checkLifeformChange(taulu,player)
 
@@ -724,7 +728,9 @@ function Plugin:addAssists(attacker_steamId,target_steamId)
                         local player = client:GetPlayer()
                         
                         if player then
-                            local pointValue = Plugin:getPlayerClientBySteamId(target_steamId):GetPlayer():GetPointValue()*0.5
+                            local pointValue = Plugin:getPlayerClientBySteamId(target_steamId):GetPlayer():GetPointValue()
+                            if pointvalue == nil then return end
+                            pointValue = pointValue / 2
                             // player:AddAssist() //RBPSplayer entity should update 1 second later automatically
                             player:AddScore(pointValue)
                             taulu["assists"] = taulu["assists"] + 1
@@ -766,6 +772,7 @@ end
 
 function Plugin:addPlayerToTable(client)
     if not client then return end
+    if string.find(client:GetPlayer().name,"Bot",nil,true) ~= nil and client:GetIsVirtual() then return end
     if Plugin:IsClientInTable(client) == false then	
         table.insert(Plugin.Players, Plugin:createPlayerTable(client))
         //debug
@@ -978,6 +985,7 @@ function Plugin:updateWeaponData(RBPSplayer)
 end
 
 function Plugin:checkLifeformChange(player, newPlayer)
+    if string.find(player.name,"Bot",nil,true) ~= nil and newPlayer:GetClient():GetIsVirtual() then return end
     local currentLifeform = newPlayer:GetMapName()
     local previousLifeform = player.lifeform
     
@@ -1120,14 +1128,14 @@ function Plugin:getPlayerByClient(client)
     return nil
 end
 
-function Plugin:addPlayerJoinedTeamToLog(player, newTeamNumber)
-
+function Plugin:addPlayerJoinedTeamToLog(player)
     local client = player:GetClient()
+    if string.find(player.name,"Bot",nil,true) ~= nil and client:GetIsVirtual()then return end
     local playerJoin =
     {
         action="player_join_team",
         name = player.name,
-        team=newTeamNumber,
+        team = player:GetTeam():GetTeamNumber(),
         steamId = Plugin:GetId(client),
         score = player.score
     }
@@ -1331,9 +1339,13 @@ function Plugin:addHitToLog(target, attacker, doer, damage, damageType)
         Plugin:playerAddDamageTaken(RBPSplayer.steamId,RBPStargetPlayer.steamId)
         // Add Attacker as possible Assist
         //Both Players ?
-        if target:GetClient() == nil or attacker:GetClient() == nil then return end
-        if Plugin.Assists[Plugin:GetId(target:GetClient())] == nil then Plugin.Assists[Plugin:GetId(target:GetClient())] = {} end
-        Plugin.Assists[Plugin:GetId(target:GetClient())][Plugin:GetId(attacker:GetClient())] = true
+        local target_id = Plugin:GetId(target:GetClient())
+        local attacker_id = Plugin:GetId(attacker:GetClient())
+        //debug
+        Notify ("Ids: ".. target_id .. " , " .. attacker_id)
+        if target_id == nil or attacker_id == nil then return end
+        if Plugin.Assists[target_id] == nil then Plugin.Assists[target_id] = {} end
+        Plugin.Assists[target_id][attacker_id] = true
         
         
     else //target is a structure
@@ -1586,13 +1598,17 @@ function Plugin:GetId(Client)
     local newId=""
     local letters = " (){}[]/.,+-=?!*1234567890aAbBcCdDeEfFgGhHiIjJkKlLmMnNoOpPqQrRsStTuUvVwWxXyYzZ"
     local input = tostring(Client:GetPlayer():GetName())
+    input = input:sub(6,#input)
+    input = string.reverse(input)
     for i=1, #input do
         local char = input:sub(i,i)
         local num = string.find(letters,char,nil,true)
         newId = newId .. tostring(num)        
     end
+    while #newId < 10 do
+        newId = newId .. "0"
+    end    
     //to differ between e.g. name and name (2)
-    newId = string.reverse(newId)
     newId = string.sub(newId, 1 , 10)  
     //make a int
     newId = tonumber(newId)
