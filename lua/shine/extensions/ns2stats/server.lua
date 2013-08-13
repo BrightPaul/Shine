@@ -238,7 +238,8 @@ function  Plugin:OnFinishedBuilt(ConstructMixin, builder)
     local techId = ConstructMixin:GetTechId()
     local strloc = ConstructMixin:GetOrigin()
     local client = Server.GetOwner(builder)
-    local steamId = -1
+    local team = ConstructMixin:GetTeamNumber()
+    local steamId = Plugin:getTeamCommanderSteamid(team)
     local buildername = ""
 
     if client ~= nil then
@@ -253,7 +254,7 @@ function  Plugin:OnFinishedBuilt(ConstructMixin, builder)
         builder_name = buildername,
         steamId = steamId,
         structure_cost = GetCostForTech(techId),
-        team = ConstructMixin:GetTeamNumber(),
+        team = team,
         structure_name = EnumToString(kTechId, techId),
         structure_x = string.format("%.4f",strloc.x),
         structure_y = string.format("%.4f",strloc.y),
@@ -304,7 +305,7 @@ function Plugin:OnTechResearched( ResearchMixin,structure,researchId)
     {
         structure_id = ResearchMixin:GetId(),
         team = structure:GetTeamNumber(),
-        commander_steamid = -1,
+        commander_steamid = Plugin:getTeamCommanderSteamid(team),
         cost = GetCostForTech(techId),
         upgrade_name = EnumToString(kTechId, techId),
         action = "upgrade_finished"
@@ -545,7 +546,6 @@ function Plugin:addLog(tbl)
     if tbl == nil then
         return
     end
-    
     //no tracking before game has started
     if not GameHasStarted then return end
     tbl.time = Shared.GetGMTString(false)
@@ -577,6 +577,7 @@ function Plugin:sendData()
             
             if totalLength>500000 then //we dont want to have more than 500 000 characters since that seems to crash the server
                 RBPSlastLog = nil //basicly log fails here, but continue anyway
+                Notify ("Log too long")
             else
                 RBPSlastLog = RBPSlastLog .. RBPSlog //save log in memory if we need to resend, keep last log also in memory if send failed	
             end	
@@ -586,7 +587,6 @@ function Plugin:sendData()
     end	
 
     Shared.SendHTTPRequest(self.Config.WebsiteDataUrl, "POST", params, function(response,status) Plugin:onHTTPResponseFromSend(client,"send",response,status) end)	
-    Notify ("[NS2Stats]: Log is send")
     RBPSsendStartTime = Shared.GetSystemTime()
 end
 
@@ -731,10 +731,14 @@ function Plugin:addAssists(attacker_steamId,target_steamId)
             local pointValue = Plugin:getPlayerClientBySteamId(target_steamId):GetPlayer():GetPointValue()
             if pointvalue == nil then return end
             pointValue = pointValue / 2
-            // player:AddAssist() //RBPSplayer entity should update 1 second later automatically
             player:AddScore(pointValue)
-            local taulu = Plugin:getPlayerByClient(client)
-            taulu["assists"] = taulu["assists"] + 1
+            //Add Assist to Players stats
+            for key,taulu in pairs(Plugin.Players) do
+                if taulu["name"] == Player.name then
+                    taulu["assists"] = taulu["assists"]+ 1
+                    break
+                end
+            end          
             Plugin.Assists[target_steamId][attacker_steamId] = false
         end
     end
@@ -983,10 +987,10 @@ function Plugin:OnLifeformChanged(Player, oldEntityId, newEntityId)
    if tostring(Player.name) ~= nil and tostring(Player.name) ~= "NSPlayer" then
      for key,taulu in pairs(Plugin.Players) do
         if taulu["name"] == Player.name then
-            if taulu["lifeform"] ~= Player:GetMapName() then                
-                if not Player:GetIsAlive() then
-                    taulu["lifeform"] = "dead"
-                else taulu["lifeform"] = Player:GetMapName() end
+            local Currentlifeform = Player:GetMapName()
+            if not Player:GetIsAlive() then Currentlifeform = "dead"
+            if taulu["lifeform"] ~= Currentlifeform then                
+                taulu["lifeform"] = Currentlifeform end
                 Plugin:addLog({action = "lifeform_change", name = taulu["name"], lifeform = taulu["lifeform"], steamId = taulu["steamId"]})
                 break                  
             else
