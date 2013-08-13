@@ -23,6 +23,7 @@ Plugin.DefaultConfig =
     WebsiteApiUrl = "http://ns2stats.com/api",
     Assists = true, // Give Points (50%) for assists?
     Awards = true, //show award (todo)
+    LogChat = true //log the chat?
     ServerKey = "",
     IngameBrowser = true, // use ingame browser or Steamoverlay 
     Tags = {}, //Tags added to log  
@@ -113,6 +114,9 @@ end
 
 //Chatlogging
 function Plugin:PlayerSay( Client, Message )
+
+    if not Plugin.Config.LogChat then return end
+    
     Plugin:addLog({
         action = "chat_message",
         team = Client:GetPlayer():GetTeamNumber(),
