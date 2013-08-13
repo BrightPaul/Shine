@@ -46,6 +46,7 @@ Shine.Hook.SetupClassHook("DropPack","OnCreate","OnPickableItemCreated","Passive
 Shine.Hook.SetupClassHook("DropPack","OnTouch","OnPickableItemPicked","PassivePost")
 Shine.Hook.SetupClassHook("PlayerBot","UpdateName","OnBotRenamed","PassivePost")
 Shine.Hook.SetupClassHook("Player","SetName","PlayerNameChange","PassivePost")
+Shine.Hook.SetupClassHook("Player","OnEntityChange","OnLifeformChanged","PassivePost")
  
    
 //Score datatable 
@@ -60,7 +61,7 @@ RBPSresendCount = 0
 Gamestarted = 0
 RBPSgameFinished = 0
 //Game started yet?
-GameStarted = false
+GameHasStarted = false
 
 function Plugin:Initialise()
     self.Enabled = true
@@ -189,7 +190,6 @@ end
 //Resource gathered
 function Plugin:OnTeamGetResources(PlayingTeam, amount)
     //fix ress tracking before round has started
-    if not GameStarted then return end
     local newResourceGathered =
     {
         team = PlayingTeam:GetTeamNumber(),
@@ -235,7 +235,6 @@ end
 //Building built
 function  Plugin:OnFinishedBuilt(ConstructMixin, builder)
     //fix logging before round has started
-    if not GameStarted then return end
     local techId = ConstructMixin:GetTechId()
     local strloc = ConstructMixin:GetOrigin()
     local client = Server.GetOwner(builder)
@@ -351,10 +350,12 @@ end
 
 function Plugin:SetGameState( Gamerules, NewState, OldState )
     //Gamestart
-    if NewState == kGameState.Started then 
+    if NewState == kGameState.Started then
+         GameHasStarted = true
+         Gamestarted = Shared.GetTime()
          Plugin:addLog({action = "game_start"})
          Plugin:addPlayersToLog(0)
-         GameStarted = true
+         
     end
 end
  //Gameend
@@ -367,7 +368,6 @@ function Plugin:EndGame( Gamerules, WinningTeam )
         end	
         
         RBPSgameFinished = 1
-        GameStarted = false
         Plugin:addPlayersToLog(1)
       
         local initialHiveTechIdString = "None"
@@ -387,10 +387,10 @@ function Plugin:EndGame( Gamerules, WinningTeam )
                     start_path_distance = Gamerules.startingLocationsPathDistance,
                     start_hive_tech = initialHiveTechIdString,
                 }
-        //debug
-        Notify("Server infos on the way")
+        //debug Notify("Server infos on the way")        
         Plugin:AddServerInfos(params)
         if Plugin.Config.Statsonline then Plugin:sendData()  end //senddata also clears log
+        GameHasStarted = false
         //Resets all Stats
         RBPSgameFinished = 0
         RBPSlogPartNumber = 1
@@ -539,13 +539,15 @@ function Plugin:initLog ()
 end
 
 function Plugin:addLog(tbl)
-    
+ 
     if logInit == false then self:initLog() end
     
     if tbl == nil then
         return
     end
     
+    //no tracking before game has started
+    if not GameHasStarted then return end
     tbl.time = Shared.GetGMTString(false)
     tbl.gametime = Shared.GetTime() - Gamestarted
     RBPSlog = RBPSlog .. json.encode(tbl) .."\n"	
@@ -642,6 +644,9 @@ end
 function Plugin:UpdatePlayerInTable(client)
     if not client then return end
     local player = client:GetPlayer()
+    
+    if player == nil then return end
+    
     local steamId = Plugin:GetId(client)
     local origin = player:GetOrigin()
     local weapon = "none"
@@ -649,21 +654,21 @@ function Plugin:UpdatePlayerInTable(client)
     for key,taulu in pairs(Plugin.Players) do
         --Jos taulun(pelaajan) steamid on sama kuin etsittävä niin päivitetään tiedot.
         if  taulu["steamId"] == steamId  then
-            taulu = Plugin:checkTeamChange(taulu,player)
-            taulu = Plugin:checkLifeformChange(taulu,player)
+            taulu.teamnumber = player:GetTeam():GetTeamNumber()
+            taulu.lifeform = player:GetMapName()
+            if player:GetIsAlive() == false then
+                taulu.lifeform = "dead"
+                taulu.damageTaken = {}
+                taulu.killstreak = 0
+            end
 
-            if taulu.lifeform == "dead" then //TODO optimize, happens many times when dead
-            taulu.damageTaken = {}
-            taulu.killstreak = 0
-            end	
-
-                        //weapon table>>
-                            if player.GetActiveWeapon and player:GetActiveWeapon() then
-                                weapon = player:GetActiveWeapon():GetMapName()
-                            end
-                            
-                            taulu["weapon"] = weapon
-                            Plugin:updateWeaponData(taulu)
+            //weapon table>>
+                if player.GetActiveWeapon and player:GetActiveWeapon() then
+                    weapon = player:GetActiveWeapon():GetMapName()
+                end
+                
+                taulu["weapon"] = weapon
+                Plugin:updateWeaponData(taulu)
             //weapon table<<
 
             
@@ -699,7 +704,7 @@ function Plugin:addKill(attacker_steamId,target_steamId)
             end
         elseif  Plugin.Assists[target_steamId] ~= nil then
             if Plugin.Assists[target_steamId][taulu.steamId] ~= nil then
-                if Plugin.Assists[target_steamId][taulu.steamId]== true then Plugin.addAssists(taulu.steamId,target_steamId) end
+                if Plugin.Assists[target_steamId][taulu.steamId]== true then Plugin:addAssists(taulu.steamId,target_steamId) end
             end
         end      
         
@@ -716,31 +721,21 @@ function Plugin:checkForMultiKills(name,streak)
     //add sounds?
 end
 
-//To redo: assists
+//assists called by addkill()
 function Plugin:addAssists(attacker_steamId,target_steamId)
-    for key,taulu in pairs(Plugin.Players) do
-        if taulu["steamId"] == target_steamId then
-            for k,d in pairs(taulu.damageTaken) do	
-                if d.steamId ~= attacker_steamId then
-                    //add assist
-                    local client = Plugin:getPlayerClientBySteamId(d.steamId)
-                    if client then //player might have disconnected
-                        local player = client:GetPlayer()
-                        
-                        if player then
-                            local pointValue = Plugin:getPlayerClientBySteamId(target_steamId):GetPlayer():GetPointValue()
-                            if pointvalue == nil then return end
-                            pointValue = pointValue / 2
-                            // player:AddAssist() //RBPSplayer entity should update 1 second later automatically
-                            player:AddScore(pointValue)
-                            taulu["assists"] = taulu["assists"] + 1
-                            Plugin.Assists[target_steamId][attacker_steamId] = false
-                        end
-                    end
-                end
-            end
-            
-            return
+    if attacker_Id == nil or target_steamId == nil then return end
+    local client = Plugin:getPlayerClientBySteamId(attacker_steamId)
+    if client then //player might have disconnected
+        local player = client:GetPlayer()        
+        if player then
+            local pointValue = Plugin:getPlayerClientBySteamId(target_steamId):GetPlayer():GetPointValue()
+            if pointvalue == nil then return end
+            pointValue = pointValue / 2
+            // player:AddAssist() //RBPSplayer entity should update 1 second later automatically
+            player:AddScore(pointValue)
+            local taulu = Plugin:getPlayerByClient(client)
+            taulu["assists"] = taulu["assists"] + 1
+            Plugin.Assists[target_steamId][attacker_steamId] = false
         end
     end
 end
@@ -775,8 +770,7 @@ function Plugin:addPlayerToTable(client)
     if string.find(client:GetPlayer().name,"Bot",nil,true) ~= nil and client:GetIsVirtual() then return end
     if Plugin:IsClientInTable(client) == false then	
         table.insert(Plugin.Players, Plugin:createPlayerTable(client))
-        //debug
-        Notify(client:GetPlayer():GetName() .. " has been added to Players")        
+        //debug Notify(client:GetPlayer():GetName() .. " has been added to Players")                
     else
         Plugin:setConnected(client)
 end
@@ -825,8 +819,8 @@ function Plugin:createPlayerTable(client)
         unstuckCounter = 0,
         lastCoords =0,
         index=0,	
-        lifeform="",
-        weapon = "none",
+        lifeform = player:GetMapName(),
+        weapon = "",
         lastCommand = 0,
         dc = false,
         total_constructed=0,
@@ -984,36 +978,24 @@ function Plugin:updateWeaponData(RBPSplayer)
 
 end
 
-function Plugin:checkLifeformChange(player, newPlayer)
-    if string.find(player.name,"Bot",nil,true) ~= nil and newPlayer:GetClient():GetIsVirtual() then return end
-    local currentLifeform = newPlayer:GetMapName()
-    local previousLifeform = player.lifeform
-    
-    if newPlayer:GetIsAlive() == false then
-        currentLifeform = "dead"
-    end
-    
-    if previousLifeform ~= currentLifeform then
-    player.lifeform = currentLifeform
-    Plugin:addLog({action = "lifeform_change", name = player.name, lifeform = currentLifeform, steamId = player.steamId})
-    end
-    
-    return player
+function Plugin:OnLifeformChanged(Player, oldEntityId, newEntityId)
+   // search for playername in players table if its there player is real and lifeform change should be tracked
+   if tostring(Player.name) ~= nil and tostring(Player.name) ~= "NSPlayer" then
+     for key,taulu in pairs(Plugin.Players) do
+        if taulu["name"] == Player.name then
+            if taulu["lifeform"] ~= Player:GetMapName() then                
+                if not Player:GetIsAlive()
+                    taulu["lifeform"] = "dead"
+                else taulu["lifeform"] = Player:GetMapName() end
+                Plugin:addLog({action = "lifeform_change", name = taulu["name"], lifeform = taulu["lifeform"], steamId = taulu["steamId"]})
+                break                  
+            else
+                return
+            end 
+        end
+     end
+   end   
 end
-
-
-function Plugin:checkTeamChange(player, newPlayer)
-    local currentTeam = newPlayer:GetTeamNumber()
-    local previousTeam = player.teamnumber
-    
-    if previousTeam ~= currentTeam then
-        player.teamnumber = currentTeam
-        Plugin:addPlayerJoinedTeamToLog(newPlayer, currentTeam)
-    end
-    
-    return player
-end
-
 
 function Plugin:IsClientInTable(client)
 
@@ -1341,9 +1323,8 @@ function Plugin:addHitToLog(target, attacker, doer, damage, damageType)
         //Both Players ?
         local target_id = Plugin:GetId(target:GetClient())
         local attacker_id = Plugin:GetId(attacker:GetClient())
-        //debug
-        Notify ("Ids: ".. target_id .. " , " .. attacker_id)
         if target_id == nil or attacker_id == nil then return end
+        //debug  Notify ("Ids: ".. target_id .. " , " .. attacker_id)       
         if Plugin.Assists[target_id] == nil then Plugin.Assists[target_id] = {} end
         Plugin.Assists[target_id][attacker_id] = true
         
@@ -1592,12 +1573,11 @@ function Plugin:CreateCommands()
 end
 
 //For Bots
-
-function Plugin:GetId(Client)
-    if not Client:GetIsVirtual() then return Client:GetUserId() end
+function Plugin:GetIdbyName(Name)
+    if not Name then return end
     local newId=""
     local letters = " (){}[]/.,+-=?!*1234567890aAbBcCdDeEfFgGhHiIjJkKlLmMnNoOpPqQrRsStTuUvVwWxXyYzZ"
-    local input = tostring(Client:GetPlayer():GetName())
+    local input = tostring(Name)
     input = input:sub(6,#input)
     input = string.reverse(input)
     for i=1, #input do
@@ -1613,6 +1593,12 @@ function Plugin:GetId(Client)
     //make a int
     newId = tonumber(newId)
     return newId
+end
+
+function Plugin:GetId(Client)
+    if not Client then return end
+    if not Client:GetIsVirtual() then return Client:GetUserId() end
+    Plugin:GetIdbyName(Client:GetPlayer():GetName())
 end
 
 function Plugin:Cleanup()
