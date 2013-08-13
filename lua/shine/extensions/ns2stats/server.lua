@@ -1294,7 +1294,7 @@ function Plugin:addHitToLog(target, attacker, doer, damage, damageType)
             action = "hit_player",	
             
             //Attacker
-            attacker_steamId = RBPSplayer.steamId,
+            attacker_steamId = Plugin:GetId(attacker),
             attacker_team = ((HasMixin(attacker, "Team") and attacker:GetTeamType()) or kNeutralTeamType),
             attacker_weapon = doer:GetMapName(),
             attacker_lifeform = attacker:GetMapName(),
@@ -1305,7 +1305,7 @@ function Plugin:addHitToLog(target, attacker, doer, damage, damageType)
             attackerz = RBPSplayer.z,
             
             //Target
-            target_steamId = RBPStargetPlayer.steamId,
+            target_steamId =  Plugin:GetId(target),
             target_team = target:GetTeamType(),
             target_weapon = targetWeapon,
             target_lifeform = target:GetMapName(),
@@ -1345,7 +1345,7 @@ function Plugin:addHitToLog(target, attacker, doer, damage, damageType)
             action = "hit_structure",	
             
             //Attacker
-            attacker_steamId = RBPSplayer.steamId,
+            attacker_steamId =  Plugin:GetId(attacker),
             attacker_team = ((HasMixin(attacker, "Team") and attacker:GetTeamType()) or kNeutralTeamType),
             attacker_weapon = doer:GetMapName(),
             attacker_lifeform = attacker:GetMapName(),
