@@ -326,7 +326,7 @@ function Plugin:addUpgradeLostToLog(UpgradableMixin, techId)
         action = "upgrade_lost"
     }
 
-    RBPS:addLog(newUpgrade)
+    Plugin:addLog(newUpgrade)
 
 end
 
@@ -1578,6 +1578,7 @@ function Plugin:CreateCommands()
     end)
     Verify:Help ("Sets yourself as serveradmin at NS2Stats.com")
 end
+//Get NS2 IDs
 
 //For Bots
 function Plugin:GetIdbyName(Name)
@@ -1608,8 +1609,270 @@ function Plugin:GetId(Client)
     return Plugin:GetIdbyName(Client:GetPlayer():GetName())    
 end
 
+//Awards
+
+function Plugin:processAwards()
+   RBPSawards = {}
+   Plugin:makeAwardsList()
+   Plugin:sendAwardListToClients()
+      
+   return RBPSawards
+end
+
+function Plugin:makeAwardsList()
+
+    //DO NOT CHANGE ORDER HERE
+    Plugin:addAward(Plugin:awardMostDamage())
+    Plugin:addAward(Plugin:awardMostKillsAndAssists())
+    Plugin:addAward(Plugin:awardMostConstructed())
+    Plugin:addAward(Plugin:awardMostStructureDamage())
+    Plugin:addAward(Plugin:awardMostPlayerDamage())
+    Plugin:addAward(Plugin:awardBestAccuracy())
+    Plugin:addAward(Plugin:awardMostJumps())
+    Plugin:addAward(Plugin:awardHighestKillstreak())
+    
+end
+
+function Plugin:sendAwardListToClients()
+
+    //send highest 10 rating awards
+    table.sort(RBPSawards, function (a, b)
+          return a.rating > b.rating
+        end)
+
+   local playerList = EntityListToTable(Shared.GetEntitiesWithClassname("Player"))
+   for a=1,#RBPSawards do
+        for p = 1, #playerList do
+            // todo Cout:SendMessageToClient(playerList[p], "awards",{award = RBPSawards[a].message})
+            
+            /*if a == #RBPSawards or a == RBPSadvancedConfig.awardsMax then
+                Cout:SendMessageToClient(playerList[p], "showAwards",{msg = "no msg"})
+            end */
+        end
+        
+        /*if a == #RBPSawards or a == RBPSadvancedConfig.awardsMax then
+            break
+        end*/
+   end
+end
+
+function Plugin:addAward(award)
+    RBPSnextAwardId = RBPSnextAwardId +1
+    award.id = RBPSnextAwardId
+    
+    RBPSawards[#RBPSawards +1] = award
+end
+
+function Plugin:awardMostDamage()
+    local highestDamage = 0
+    local highestPlayer = "nobody"
+    local highestSteamId = ""
+    local totalDamage = nil
+    local rating = 0
+    
+    for key,taulu in pairs(Plugin.Players) do
+        totalDamage = 0
+        
+        for i=1, #taulu.weapons do
+            totalDamage = totalDamage + taulu.weapons[i].structure_damage
+            totalDamage = totalDamage + taulu.weapons[i].player_damage
+        end
+        
+        if math.floor(totalDamage) > math.floor(highestDamage) then
+            highestDamage = totalDamage
+            highestPlayer = taulu.name
+            highestSteamId = taulu.steamId
+        end
+    end
+    
+    rating = (highestDamage+1)/350
+    
+    return {steamId = highestSteamId, rating = rating, message = "Most damage done by " .. highestPlayer .. " with total of " .. math.floor(highestDamage) .. " damage!"}
+end
+
+function Plugin:awardMostKillsAndAssists()
+    local total = 0
+    local rating = 0
+    local highestTotal = 0
+    local highestPlayer = "Nobody"
+    local highestSteamId = ""
+    
+    for key,taulu in pairs(Plugin.Players) do
+        total = taulu.kills + taulu.assists
+        if total > highestTotal then
+            highestTotal = total
+            highestPlayer = taulu.name
+            highestSteamId = taulu.steamId
+        end
+    
+    end
+    
+    rating = highestTotal
+    
+    return {steamId = highestSteamId, rating = rating, message = highestPlayer .. " is deathbringer with total of " .. highestTotal .. " kills and assists!"}
+end
+
+function Plugin:awardMostConstructed()
+    local highestTotal = 0
+    local rating = 0
+    local highestPlayer = "was not present"
+    local highestSteamId = ""
+    
+    for key,taulu in pairs(Plugin.Players) do
+        if taulu.total_constructed > highestTotal then
+            highestTotal = taulu.total_constructed
+            highestPlayer = taulu.name
+            highestSteamId = taulu.steamId
+        end
+    end
+    
+    rating = (highestTotal+1)/30
+    
+    return {steamId = highestSteamId, rating = rating, message = "Bob the builder: " .. highestPlayer .. "!"}
+end
+
+
+function Plugin:awardMostStructureDamage()
+    local highestTotal = 0
+    local highestPlayer = "nobody"
+    local highestSteamId = ""
+    local total = 0
+    local rating = 0
+    
+    for key,taulu in pairs(Plugin.Players) do
+        total = 0
+        
+        for i=1, #taulu.weapons do
+            total = total + taulu.weapons[i].structure_damage
+        end
+        
+        if math.floor(total) > math.floor(highestTotal) then
+            highestTotal = total
+            highestPlayer = taulu.name
+            highestSteamId = taulu.steamId
+        end
+    end
+    
+    rating = (highestTotal+1)/150
+    
+    return {steamId = highestSteamId, rating = rating, message = "Demolition man: " .. highestPlayer .. " with " .. math.floor(highestTotal) .. " structure damage."}
+end
+
+
+function Plugin:awardMostPlayerDamage()
+    local highestTotal = 0
+    local highestPlayer = "nobody"
+    local highestSteamId = ""
+    local total = 0
+    local rating = 0
+    
+    for key,taulu in pairs(Plugin.Players) do
+        total = 0
+        
+        for i=1, #taulu.weapons do
+            total = total + taulu.weapons[i].player_damage
+        end
+        
+        if math.floor(total) > math.floor(highestTotal) then
+            highestTotal = total
+            highestPlayer = taulu.name
+            highestSteamId = taulu.steamId
+        end
+    end
+    
+    rating = (highestTotal+1)/90
+    
+    return {steamId = highestSteamId, rating = rating, message = highestPlayer .. " was spilling blood worth of " .. math.floor(highestTotal) .. " damage."}
+end
+
+
+function Plugin:awardBestAccuracy()
+    local highestTotal = 0
+    local highestPlayer = "nobody"
+    local highestSteamId = ""
+    local highestTeam = 0
+    local total = 0
+    local rating = 0
+    
+    for key,taulu in pairs(Plugin.Players) do
+        total = 0
+        
+        for i=1, #taulu.weapons do
+            total = total + taulu.weapons[i].player_hit/(taulu.weapons[i].miss+1)
+        end
+        
+        if total > highestTotal then
+            highestTotal = total
+            highestPlayer = taulu.name
+            highestTeam = taulu.teamnumber
+            highestSteamId = taulu.steamId
+        end
+    end
+    
+    rating = highestTotal*10
+    
+    if highestTeam == 2 then
+        return {steamId = highestSteamId, rating = rating, message = "Versed: " .. highestPlayer}
+    else //marine or ready room
+         return {steamId = highestSteamId, rating = rating, message = "Weapon specialist: " .. highestPlayer}
+    end
+end
+
+
+function Plugin:awardMostJumps()
+    local highestTotal = 0
+    local highestPlayer = "nobody"
+    local highestSteamId = ""
+    local total = 0
+    local rating = 0
+    
+    for key,taulu in pairs(Plugin.Players) do
+        total = 0
+        
+        
+        total = taulu.jumps
+        
+        
+        if total > highestTotal then
+            highestTotal = total
+            highestPlayer = taulu.name
+            highestSteamId = taulu.steamId
+        end
+    end
+    
+    rating = highestTotal/30
+        
+    return {steamId = highestSteamId, rating = rating, message = highestPlayer .. " is jump maniac with " .. highestTotal .. " jumps!"}
+    
+end
+
+
+function Plugin:awardHighestKillstreak()
+    local highestTotal = 0
+    local highestPlayer = "nobody"
+    local highestSteamId = ""
+    local total = 0
+    local rating = 0
+    
+    for key,taulu in pairs(Plugin.Players) do
+                  
+        total = taulu.highestKillstreak
+        
+        if total > highestTotal then
+            highestTotal = total
+            highestPlayer = taulu.name
+            highestSteamId = taulu.steamId
+        end
+    end
+    
+    rating = highestTotal
+        
+    return {steamId = highestSteamId, rating = rating, message = highestPlayer .. " became unstoppable with streak of " .. highestTotal .. " kills!"}
+end
+
+//Cleanup
 function Plugin:Cleanup()
     self.Enabled = false
     Shine.Timer.Destroy("WeaponUpdate")
     Shine.Timer.Destroy("SendStats")
-end
+end    
