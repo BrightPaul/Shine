@@ -1598,7 +1598,7 @@ end
 function Plugin:GetId(Client)
     if not Client then return end
     if not Client:GetIsVirtual() then return Client:GetUserId() end
-    Plugin:GetIdbyName(Client:GetPlayer():GetName())
+    return Plugin:GetIdbyName(Client:GetPlayer():GetName())    
 end
 
 function Plugin:Cleanup()
