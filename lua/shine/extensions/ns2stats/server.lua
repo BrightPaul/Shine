@@ -114,7 +114,7 @@ end
 //Chatlogging
 function Plugin:PlayerSay( Client, Message )
     Plugin:addLog({
-        action = "chat",
+        action = "chat_message",
         team = Client:GetPlayer():GetTeamNumber(),
         steamid = Plugin:GetId(Client),
         name = Client:GetPlayer():GetName(),
