@@ -111,6 +111,17 @@ function Plugin:OnDamageDealt(DamageMixin, damage, target, point, direction, sur
     Plugin:addHitToLog(target, attacker, doer, damage, damageType)
 end
 
+//Chatlogging
+function Plugin:PlayerSay( Client, Message )
+    Plugin:addLog({
+        action = "chat",
+        team = Client:GetPlayer():GetTeamNumber(),
+        steamid = Plugin:GetId(Client),
+        name = Client:GetPlayer():GetName(),
+        message = tostring(Message),
+        toteam = Message.teamOnly
+    })
+end
 //Entity Killed
 function Plugin:OnEntityKilled(Gamerules, TargetEntity, Attacker, Inflictor, Point, Direction)
     /* use old function for now //Structures
@@ -305,7 +316,7 @@ function Plugin:OnTechResearched( ResearchMixin,structure,researchId)
     {
         structure_id = ResearchMixin:GetId(),
         team = structure:GetTeamNumber(),
-        commander_steamid = Plugin:getTeamCommanderSteamid(team),
+        commander_steamid = Plugin:getTeamCommanderSteamid(structure:GetTeamNumber()),
         cost = GetCostForTech(techId),
         upgrade_name = EnumToString(kTechId, techId),
         action = "upgrade_finished"
