@@ -984,7 +984,7 @@ function Plugin:OnLifeformChanged(Player, oldEntityId, newEntityId)
      for key,taulu in pairs(Plugin.Players) do
         if taulu["name"] == Player.name then
             if taulu["lifeform"] ~= Player:GetMapName() then                
-                if not Player:GetIsAlive()
+                if not Player:GetIsAlive() then
                     taulu["lifeform"] = "dead"
                 else taulu["lifeform"] = Player:GetMapName() end
                 Plugin:addLog({action = "lifeform_change", name = taulu["name"], lifeform = taulu["lifeform"], steamId = taulu["steamId"]})
