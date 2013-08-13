@@ -21,7 +21,7 @@ Plugin.DefaultConfig =
     WebsiteDataUrl = "http://ns2stats.com/api/sendlog", //this is url where posted data is send and where it is parsed into database
     WebsiteStatusUrl="http://ns2stats.com/api/sendstatus", //this is url where posted data is send on status sends
     WebsiteApiUrl = "http://ns2stats.com/api",
-    Assists = true, // Track assists?
+    Assists = true, // Give Points (50%) for assists?
     Awards = true, //show award (todo)
     ServerKey = "",
     IngameBrowser = true, // use ingame browser or Steamoverlay 
@@ -723,6 +723,7 @@ end
 
 //assists called by addkill()
 function Plugin:addAssists(attacker_steamId,target_steamId)
+    
     if attacker_Id == nil or target_steamId == nil then return end
     local client = Plugin:getPlayerClientBySteamId(attacker_steamId)
     if client then //player might have disconnected
@@ -730,8 +731,10 @@ function Plugin:addAssists(attacker_steamId,target_steamId)
         if player then
             local pointValue = Plugin:getPlayerClientBySteamId(target_steamId):GetPlayer():GetPointValue()
             if pointvalue == nil then return end
-            pointValue = pointValue / 2
-            player:AddScore(pointValue)
+            if Plugin.Config.Assists == true then
+                pointValue = pointValue / 2
+                player:AddScore(pointValue)
+            end
             //Add Assist to Players stats
             for key,taulu in pairs(Plugin.Players) do
                 if taulu["name"] == Player.name then
