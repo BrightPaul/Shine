@@ -100,7 +100,7 @@ end
 
 //All the Damage/Player Stuff
 
-//Damage Dealt Todo
+//Damage Dealt
 function Plugin:OnDamageDealt(DamageMixin, damage, target, point, direction, surface, altMode, showtracer)
     //Debug Notify("damage Dealt called")
     local attacker = DamageMixin:GetParent()
@@ -118,10 +118,11 @@ function Plugin:PlayerSay( Client, Message )
         team = Client:GetPlayer():GetTeamNumber(),
         steamid = Plugin:GetId(Client),
         name = Client:GetPlayer():GetName(),
-        message = tostring(Message),
+        message = Message.message,
         toteam = Message.teamOnly
     })
 end
+
 //Entity Killed
 function Plugin:OnEntityKilled(Gamerules, TargetEntity, Attacker, Inflictor, Point, Direction)
     /* use old function for now //Structures
@@ -1305,7 +1306,7 @@ function Plugin:addHitToLog(target, attacker, doer, damage, damageType)
             action = "hit_player",	
             
             //Attacker
-            attacker_steamId = Plugin:GetId(attacker),
+            attacker_steamId = Plugin:GetId(attacker:GetClient()),
             attacker_team = ((HasMixin(attacker, "Team") and attacker:GetTeamType()) or kNeutralTeamType),
             attacker_weapon = doer:GetMapName(),
             attacker_lifeform = attacker:GetMapName(),
@@ -1316,7 +1317,7 @@ function Plugin:addHitToLog(target, attacker, doer, damage, damageType)
             attackerz = RBPSplayer.z,
             
             //Target
-            target_steamId =  Plugin:GetId(target),
+            target_steamId =  Plugin:GetId(target:GetClient()),
             target_team = target:GetTeamType(),
             target_weapon = targetWeapon,
             target_lifeform = target:GetMapName(),
@@ -1356,7 +1357,7 @@ function Plugin:addHitToLog(target, attacker, doer, damage, damageType)
             action = "hit_structure",	
             
             //Attacker
-            attacker_steamId =  Plugin:GetId(attacker),
+            attacker_steamId =  Plugin:GetId(attacker:GetClient()),
             attacker_team = ((HasMixin(attacker, "Team") and attacker:GetTeamType()) or kNeutralTeamType),
             attacker_weapon = doer:GetMapName(),
             attacker_lifeform = attacker:GetMapName(),
