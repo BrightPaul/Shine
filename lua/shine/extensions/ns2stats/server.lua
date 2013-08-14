@@ -17,6 +17,7 @@ Plugin.ConfigName = "Ns2Stats.json"
 Plugin.DefaultConfig =
 {
     Statsonline = true, // Upload stats?
+    Statusreport = true, // send Status to NS2Stats every min
     WebsiteUrl = "http://ns2stats.com", //this is url which is shown in player private messages, so its for advertising
     WebsiteDataUrl = "http://ns2stats.com/api/sendlog", //this is url where posted data is send and where it is parsed into database
     WebsiteStatusUrl="http://ns2stats.com/api/sendstatus", //this is url where posted data is send on status sends
@@ -27,7 +28,7 @@ Plugin.DefaultConfig =
     ServerKey = "",
     IngameBrowser = true, // use ingame browser or Steamoverlay 
     Tags = {}, //Tags added to log  
-    SendTime = 1, //Send after how many min?
+    SendTime = 5, //Send after how many min?
 }
 
 Plugin.CheckConfig = true
@@ -87,16 +88,22 @@ function Plugin:Initialise()
     //every 1 sec
     //to update Weapondatas
     Shine.Timer.Create( "WeaponUpdate", 1, -1, function()
+       if not GameHasStarted then return end
        local allPlayers = Shared.GetEntitiesWithClassname("Player")
        for index, fromPlayer in ientitylist(allPlayers) do
             local client = Server.GetOwner(fromPlayer)
             Plugin:updateWeaponData(Plugin:getPlayerByClient(client))
        end
     end)
+    
+    // every 1 min send Server Status 
+    
+     Shine.Timer.Create("SendStatus" , 60, -1, function() if not GameHasStarted then return end if Plugin.Config.Statusreport then Plugin:sendServerStatus() end end)
 
-    //every 10 min maybe add config later
+    //every x min x(Sendtime at config)
     //send datas to NS2StatsServer
     Shine.Timer.Create( "SendStats", 60 * Plugin.Config.SendTime, -1, function()
+        if not GameHasStarted then return end
         if Plugin.Config.Statsonline then Plugin:sendData() end
     end)
     return true //finished loading
@@ -1551,11 +1558,16 @@ end
 
 //Adds server infos
 function Plugin:AddServerInfos(params)
-    local mods = "" 
-    for i = 1, Server.GetNumMods() do
-        // if Server.GetIsModActive(i) then maybe in future
-        mods = mods ..Server.GetModTitle(i) .. ","
-        //end
+    local mods = ""
+    local GetMod = Server.GetActiveModId
+    for i = 1, Server.GetNumActiveMods() do
+        local Mod = GetMod( i )
+        for i = 1, Server.GetNumMods() do
+            if Server.GetModId(i) == Mod then
+                mods = mods .. Server.GetModTitle(i) .. ","
+                break
+            end
+        end 
     end 
     params.action = "game_ended"
     params.statsVersion = Plugin.Version
