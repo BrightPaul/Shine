@@ -968,8 +968,8 @@ function Plugin:weaponsAddHit(player,weapon, damage)
 end
 
 
-function Plugin:weaponsAddStructureHit(RBPSplayer,weapon, damage)
-       
+function Plugin:weaponsAddStructureHit(player,weapon, damage)
+    local RBPSplayer = Plugin:getPlayerByName(player:GetName())      
     if not RBPSplayer then return end
     
     local foundId = false
