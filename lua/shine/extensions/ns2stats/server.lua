@@ -1313,7 +1313,8 @@ function Plugin:addMissToLog(attacker)
 
 end
 
-function Plugin:addHitToLog(target, attacker, doer, damage, damageType)   
+function Plugin:addHitToLog(target, attacker, doer, damage, damageType) 
+    if not attacker or not doer or not target then return end  
     if target:isa("Player") and attacker:isa("Player") then
         local aOrigin = attacker:GetOrigin()
         local tOrigin = target:GetOrigin()
