@@ -218,7 +218,9 @@ end
 
 //Resource gathered
 function Plugin:OnTeamGetResources(PlayingTeam, amount)
-    //fix ress tracking before round has started
+    //only get ress towers atm    
+    if amount > 1 then return end
+    
     local newResourceGathered =
     {
         team = PlayingTeam:GetTeamNumber(),
@@ -1312,14 +1314,12 @@ function Plugin:addMissToLog(attacker)
 end
 
 function Plugin:addHitToLog(target, attacker, doer, damage, damageType)   
-    if not attacker or not doer or not target then return end
     if target:isa("Player") and attacker:isa("Player") then
         local aOrigin = attacker:GetOrigin()
         local tOrigin = target:GetOrigin()
         local weapon = "none"
         if target:GetActiveWeapon() then
-            weapon = target:GetActiveWeapon():GetMapName() end
-        if attacker:GetClient() == nil or target:GetClient() == nil then return end  
+            weapon = target:GetActiveWeapon():GetMapName() end        
         local hitLog =
         {
             //general
@@ -1389,7 +1389,7 @@ function Plugin:addHitToLog(target, attacker, doer, damage, damageType)
         }
         
         Plugin:addLog(hitLog)
-        Plugin:weaponsAddStructureHit(RBPSplayer, doer:GetMapName(), damage)
+        Plugin:weaponsAddStructureHit(attacker, doer:GetMapName(), damage)
         
     end
            
