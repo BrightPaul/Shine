@@ -219,7 +219,7 @@ end
 //Resource gathered
 function Plugin:OnTeamGetResources(PlayingTeam, amount)
     //only get ress towers atm    
-    if amount > 1 then return end
+    if amount >= 3 then amount = 1 end //shouldnt get more than 3 res from towers at same tick
     
     local newResourceGathered =
     {
