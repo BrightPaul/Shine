@@ -1608,6 +1608,7 @@ function Plugin:GetIdbyName(Name)
     local letters = " (){}[]/.,+-=?!*1234567890aAbBcCdDeEfFgGhHiIjJkKlLmMnNoOpPqQrRsStTuUvVwWxXyYzZ"
     local input = tostring(Name)
     input = input:sub(6,#input)
+    //to differ between e.g. name and name (2)
     input = string.reverse(input)
     for i=1, #input do
         local char = input:sub(i,i)
@@ -1616,8 +1617,7 @@ function Plugin:GetIdbyName(Name)
     end
     while #newId < 10 do
         newId = newId .. "0"
-    end    
-    //to differ between e.g. name and name (2)
+    end       
     newId = string.sub(newId, 1 , 10)  
     //make a int
     newId = tonumber(newId)
@@ -1625,7 +1625,6 @@ function Plugin:GetIdbyName(Name)
 end
 
 function Plugin:GetId(Client)
-    if not Client then return end
     if not Client:GetIsVirtual() then return Client:GetUserId() end
     return Plugin:GetIdbyName(Client:GetPlayer():GetName())    
 end
