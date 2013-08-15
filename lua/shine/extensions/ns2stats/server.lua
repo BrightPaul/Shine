@@ -776,8 +776,9 @@ function Plugin:addAssists(attacker_steamId,target_steamId)
     local player  = Plugin:getPlayerBySteamId(attacker_steamId)  
     local pointValue = Plugin:getPlayerClientBySteamId(target_steamId):GetPlayer():GetPointValue()         
     if Plugin.Config.Assists == true then
-        pointValue = pointValue / 2
-        player:AddScore(pointValue)
+        /* todo add points pointValue = pointValue / 2
+        player.score = Clamp(player.score + pointValue, 0,100)
+        player:SetScoreboardChanged(true) */
         //Add Assist to Players stats
         for key,taulu in pairs(Plugin.Players) do
             if taulu.steamId == attacker_steamId then
@@ -1117,10 +1118,9 @@ function Plugin:getTeamCommanderSteamid(teamNumber)
 end
 
 function Plugin:getPlayerBySteamId(steamId)
-   for key,taulu in pairs(Plugin.Players) do	
-    
+   for key,taulu in pairs(Plugin.Players) do  
         if steamId then
-            if taulu["steamId"] .. "" == steamId .. "" then return taulu end
+            if tostring(taulu.steamId) == tostring(steamId)  then return taulu end
         end	
    end
 
@@ -1313,7 +1313,7 @@ end
 
 function Plugin:addHitToLog(target, attacker, doer, damage, damageType)   
     if not attacker or not doer or not target then return end
-    if target:isa("Player") then
+    if target:isa("Player") and attacker:isa("Player") then
         local aOrigin = attacker:GetOrigin()
         local tOrigin = target:GetOrigin()
         local weapon = "none"
@@ -1353,7 +1353,7 @@ function Plugin:addHitToLog(target, attacker, doer, damage, damageType)
         }
 
         Plugin:addLog(hitLog)
-        Plugin:weaponsAddHit(attacker, doer:GetMapName(), damage)              
+        Plugin:weaponsAddHit(attacker, doer:GetMapName(), damage)            
         Plugin:playerAddDamageTaken(Plugin:GetId(attacker:GetClient()), Plugin:GetId(target:GetClient()))     
         if Plugin.Assists[Plugin:GetId(target:GetClient())] == nil then Plugin.Assists[Plugin:GetId(target:GetClient())] = {} end
         Plugin.Assists[Plugin:GetId(target:GetClient())][Plugin:GetId(attacker:GetClient())] = true
