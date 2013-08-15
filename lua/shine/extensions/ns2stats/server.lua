@@ -78,6 +78,8 @@ function Plugin:Initialise()
     //register Commands
      Plugin:CreateCommands()
     //toget all Player into scorelist
+    
+    
     if GameHasStarted then
         local allPlayers = Shared.GetEntitiesWithClassname("Player")
         for index, fromPlayer in ientitylist(allPlayers) do
@@ -85,7 +87,7 @@ function Plugin:Initialise()
             Plugin:addPlayerToTable(client)
             Plugin:UpdatePlayerInTable(client)
         end
-    end
+    else Plugin:addLog({action="game_reset"}) end
     //Timers
     //every 1 sec
     //to update Weapondatas
@@ -435,7 +437,9 @@ function Plugin:EndGame( Gamerules, WinningTeam )
         GameHasStarted = false
         //Resets all Stats
         RBPSgameFinished = 0
-        RBPSlogPartNumber = 1      
+        RBPSlogPartNumber = 1
+        RBPSsuccessfulSends = 0
+        Plugin:addLog({action="game_reset"})       
     
 end
 
@@ -588,8 +592,6 @@ function Plugin:addLog(tbl)
     if tbl == nil then
         return
     end
-    //no tracking before game has started
-    if not GameHasStarted then return end
     tbl.time = Shared.GetGMTString(false)
     tbl.gametime = Shared.GetTime() - Gamestarted
     RBPSlog = RBPSlog .. json.encode(tbl) .."\n"	
@@ -1354,10 +1356,14 @@ function Plugin:addHitToLog(target, attacker, doer, damage, damageType)
         }
 
         Plugin:addLog(hitLog)
-        Plugin:weaponsAddHit(attacker, doer:GetMapName(), damage)            
+        Plugin:weaponsAddHit(attacker, doer:GetMapName(), damage)
+        local attacker_id = Plugin:GetId(attacker:GetClient())
+        local target_id = Plugin:GetId(target:GetClient())
+        //fix for some bugs todo: track these bugs
+        if target_id == nil or attacker_id == nil then return end           
         Plugin:playerAddDamageTaken(Plugin:GetId(attacker:GetClient()), Plugin:GetId(target:GetClient()))     
-        if Plugin.Assists[Plugin:GetId(target:GetClient())] == nil then Plugin.Assists[Plugin:GetId(target:GetClient())] = {} end
-        Plugin.Assists[Plugin:GetId(target:GetClient())][Plugin:GetId(attacker:GetClient())] = true
+        if Plugin.Assists[target_id] == nil then Plugin.Assists[target_id] = {} end
+        Plugin.Assists[target_id][attacker_id] = true
         
     else //target is a structure
         local structureOrigin = target:GetOrigin()
