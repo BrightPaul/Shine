@@ -51,6 +51,7 @@ Shine.Hook.SetupClassHook("DropPack","OnTouch","OnPickableItemPicked","PassivePo
 Shine.Hook.SetupClassHook("PlayerBot","UpdateName","OnBotRenamed","PassivePost")
 Shine.Hook.SetupClassHook("Player","SetName","PlayerNameChange","PassivePost")
 Shine.Hook.SetupClassHook("Player","OnEntityChange","OnLifeformChanged","PassivePost")
+Shine.Hook.SetupClassHook("Player","OnJump","OnPlayerJump","PassivePost")
  
    
 //Score datatable 
@@ -212,6 +213,17 @@ function Plugin:OnEntityKilled(Gamerules, TargetEntity, Attacker, Inflictor, Poi
     elseif TargetEntity:isa("Player") then Plugin:addDeathToLog(TargetEntity, Attacker, Inflictor) end       
 end
 
+//Player jumps
+function Plugin:OnPlayerJump(Player)
+ for key,taulu in pairs(Plugin.Players) do
+        if taulu.name == Player:GetName() then
+            taulu.jumps = taulu.jumps + 1
+            break
+        end
+    end        
+    
+end
+
 //Player gets heal
 function Plugin:OnPlayerGetHealed( Player )
     // player Backed Up?
@@ -311,7 +323,7 @@ function Plugin:OnBuildingRecycled( Building, ResearchID )
 end
 
 //Upgrade Stuff
-//todo
+
 //UpgradesStarted
 function Plugin:OnTechStartResearch(ResearchMixin, researchNode, player)
     if player:isa("Commander") then
@@ -513,7 +525,7 @@ function Plugin:CommLogout( Chair, Player )
     Plugin:OnLifeformChanged(Player, nil, nil)
 end
 
-//Pickubla Stuff
+//Pickable Stuff
 
 function Plugin:OnPickableItemCreated(item)
 
