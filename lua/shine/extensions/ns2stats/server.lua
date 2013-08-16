@@ -817,7 +817,6 @@ function Plugin:addAssists(attacker_steamId,target_steamId)
             end
         end          
         Plugin.Assists[target_steamId][attacker_steamId] = false 
-    end
 end
 
 //Damagetaken
