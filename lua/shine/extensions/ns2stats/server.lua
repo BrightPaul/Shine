@@ -22,7 +22,7 @@ Plugin.DefaultConfig =
     WebsiteDataUrl = "http://ns2stats.com/api/sendlog", //this is url where posted data is send and where it is parsed into database
     WebsiteStatusUrl="http://ns2stats.com/api/sendstatus", //this is url where posted data is send on status sends
     WebsiteApiUrl = "http://ns2stats.com/api",
-    Assists = true, //todo Give Points (50%) for assists?
+    Assists = true, //show Assist in Scoreboard and addpoints?
     Awards = true, //show award
     ShowNumAwards = 4, //how many awards should be shown at the end of the game?
     AwardMsgTime = 20, // secs to show awards
@@ -787,11 +787,10 @@ end
 
 //assists called by addkill()
 function Plugin:addAssists(attacker_steamId,target_steamId)         
-    if Plugin.Config.Assists == true then
-        local player = nil
-        local allPlayers = Shared.GetEntitiesWithClassname("Player")
-        for index, fromPlayer in ientitylist(allPlayers) do
-        local client = Server.GetOwner(fromPlayer)
+    local player = nil
+    local allPlayers = Shared.GetEntitiesWithClassname("Player")
+    for index, fromPlayer in ientitylist(allPlayers) do
+    local client = Server.GetOwner(fromPlayer)
         if Plugin:GetId(client) == attacker_steamId then
             player = fromPlayer
             break
@@ -800,12 +799,16 @@ function Plugin:addAssists(attacker_steamId,target_steamId)
     if player == nil then return end // no player found with atttacker_steamid
     local pointValue = Plugin:getPlayerClientBySteamId(target_steamId):GetPlayer():GetPointValue()
         pointValue = pointValue / 2
-        //give points
-        player.score = player.score + pointValue
-        local res = 0 //for other mods later?
-        local displayRes = ConditionalValue(type(res) == "number", res, 0)        
-        Server.SendCommand(player, string.format("points %s %s", tostring(pointValue), tostring(displayRes)))
-        player:SetScoreboardChanged(true)       
+        
+        //give points to player
+        if Plugin.Config.Assists == true then
+            player.score = player.score + pointValue
+            local res = 0 //for other mods later?
+            local displayRes = ConditionalValue(type(res) == "number", res, 0)        
+            Server.SendCommand(player, string.format("points %s %s", tostring(pointValue), tostring(displayRes)))
+            player:SetScoreboardChanged(true)
+            //todo: send Networkmessage to change Assists
+        end       
         //Add Assist to Players stats
         for key,taulu in pairs(Plugin.Players) do
             if taulu.steamId == attacker_steamId then
