@@ -45,7 +45,7 @@ end )
 Client.HookNetworkMessage( "Shine_StatsAwards", function( Message )
     local AwardMessage = Message.message
     local Duration = Message.duration
-    local ScreenText = Shine:AddMessageToQueue( 1, 0.95, 0.2, AwardMessage, Duration, 255, 0, 0, 2 )
+    local ScreenText = Shine:AddMessageToQueue( 1, 0.95, 0.4, AwardMessage, Duration, 255, 0, 0, 2 )
     ScreenText.Obj:SetText(ScreenText.Text)
 end)
 
