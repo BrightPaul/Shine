@@ -22,8 +22,10 @@ Plugin.DefaultConfig =
     WebsiteDataUrl = "http://ns2stats.com/api/sendlog", //this is url where posted data is send and where it is parsed into database
     WebsiteStatusUrl="http://ns2stats.com/api/sendstatus", //this is url where posted data is send on status sends
     WebsiteApiUrl = "http://ns2stats.com/api",
-    Assists = true, // Give Points (50%) for assists?
-    Awards = true, //show award (todo)
+    Assists = true, //todo Give Points (50%) for assists?
+    Awards = true, //show award
+    ShowNumAwards = 4, //how many awards should be shown at the end of the game?
+    AwardMsgTime = 20, // secs to show awards
     LogChat = true, //log the chat?
     ServerKey = "",
     IngameBrowser = true, // use ingame browser or Steamoverlay 
@@ -43,7 +45,7 @@ Shine.Hook.SetupClassHook("Player","addHealth","OnPlayerGetHealed","PassivePost"
 Shine.Hook.SetupClassHook("ConstructMixin","SetConstructionComplete","OnFinishedBuilt","PassivePost")
 Shine.Hook.SetupClassHook("ResearchMixin","OnResearchCancel","addUpgradeAbortedToLog","PassivePost")
 Shine.Hook.SetupClassHook("UpgradableMixin","RemoveUpgrade","addUpgradeLostToLog","PassivePost")
-Shine.Hook.SetupClassHook("PlayingTeam","AddTeamResources","OnTeamGetResources","PassivePost") 
+Shine.Hook.SetupClassHook("ResourceTower","CollectResources","OnTeamGetResources","PassivePost") 
 Shine.Hook.SetupClassHook("DropPack","OnCreate","OnPickableItemCreated","PassivePost") 
 Shine.Hook.SetupClassHook("DropPack","OnTouch","OnPickableItemPicked","PassivePost")
 Shine.Hook.SetupClassHook("PlayerBot","UpdateName","OnBotRenamed","PassivePost")
@@ -62,6 +64,8 @@ RBPSsuccessfulSends = 0
 RBPSresendCount = 0
 Gamestarted = 0
 RBPSgameFinished = 0
+RBPSnextAwardId= 0
+RBPSawards = {}
 //Game started yet?
 GameHasStarted = false
 //Gamestate
@@ -219,15 +223,14 @@ end
 //Team
 
 //Resource gathered
-function Plugin:OnTeamGetResources(PlayingTeam, amount)
+function Plugin:OnTeamGetResources(ResourceTower)
     //only get ress towers atm    
-    if amount >= 3 then amount = 1 end //shouldnt get more than 3 res from towers at same tick
     
     local newResourceGathered =
     {
-        team = PlayingTeam:GetTeamNumber(),
+        team = ResourceTower:GetTeam():GetTeamNumber(),
         action = "resources_gathered",
-        amount = amount
+        amount = kTeamResourcePerTick
     }
 
     Plugin:addLog(newResourceGathered)
@@ -278,6 +281,12 @@ function  Plugin:OnFinishedBuilt(ConstructMixin, builder)
     if client ~= nil then
         steamId = Plugin:GetId(client)
         buildername = builder:GetName()
+        for key,taulu in pairs(Plugin.Players) do 
+            if taulu.steamId == steamId then
+                taulu.total_constructed = taulu.total_constructed + 1
+                break
+            end
+        end        
     end
     
     local build=
@@ -386,7 +395,7 @@ function Plugin:SetGameState( Gamerules, NewState, OldState )
     Currentgamestate = NewState
     //Gamestart
     if NewState == kGameState.Started then
-         GameHasStarted = true     
+         GameHasStarted = true             
          Gamestarted = Shared.GetTime()
          Plugin:addLog({action = "game_start"})  
          //to reset PlayerList
@@ -413,6 +422,7 @@ function Plugin:EndGame( Gamerules, WinningTeam )
         end	
         
         RBPSgameFinished = 1
+        if Plugin.Config.Awards then Plugin:sendAwardListToClients() end
         Plugin:addPlayersToLog(1)
       
         local initialHiveTechIdString = "None"
@@ -776,13 +786,26 @@ function Plugin:checkForMultiKills(name,streak)
 end
 
 //assists called by addkill()
-function Plugin:addAssists(attacker_steamId,target_steamId)
-    local player  = Plugin:getPlayerBySteamId(attacker_steamId)  
-    local pointValue = Plugin:getPlayerClientBySteamId(target_steamId):GetPlayer():GetPointValue()         
+function Plugin:addAssists(attacker_steamId,target_steamId)         
     if Plugin.Config.Assists == true then
-        /* todo add points pointValue = pointValue / 2
-        player.score = Clamp(player.score + pointValue, 0,100)
-        player:SetScoreboardChanged(true) */
+        local player = nil
+        local allPlayers = Shared.GetEntitiesWithClassname("Player")
+        for index, fromPlayer in ientitylist(allPlayers) do
+        local client = Server.GetOwner(fromPlayer)
+        if Plugin:GetId(client) == attacker_steamId then
+            player = fromPlayer
+            break
+        end
+    end
+    if player == nil then return end // no player found with atttacker_steamid
+    local pointValue = Plugin:getPlayerClientBySteamId(target_steamId):GetPlayer():GetPointValue()
+        pointValue = pointValue / 2
+        //give points
+        player.score = player.score + pointValue
+        local res = 0 //for other mods later?
+        local displayRes = ConditionalValue(type(res) == "number", res, 0)        
+        Server.SendCommand(player, string.format("points %s %s", tostring(pointValue), tostring(displayRes)))
+        player:SetScoreboardChanged(true)       
         //Add Assist to Players stats
         for key,taulu in pairs(Plugin.Players) do
             if taulu.steamId == attacker_steamId then
@@ -1552,7 +1575,7 @@ function Plugin:AddServerInfos(params)
     params.successfulSends = RBPSsuccessfulSends
     params.resendCount = RBPSresendCount
     params.mods = mods
-    params.awards = {} //added later
+    params.awards = RBPSawards
     params.tags = self.Config.Tags
     params.private = false
     params.autoarrange = false //use Shine plugin settings later?
@@ -1638,13 +1661,7 @@ end
 
 //Awards
 
-function Plugin:processAwards()
-   RBPSawards = {}
-   Plugin:makeAwardsList()
-   Plugin:sendAwardListToClients()
-      
-   return RBPSawards
-end
+
 
 function Plugin:makeAwardsList()
 
@@ -1662,26 +1679,24 @@ end
 
 function Plugin:sendAwardListToClients()
 
+    //reset and generates Awardlist
+    RBPSnextAwardId = 0
+    RBPSawards = {}
+    Plugin:makeAwardsList()        
     //send highest 10 rating awards
     table.sort(RBPSawards, function (a, b)
           return a.rating > b.rating
         end)
-
-   local playerList = EntityListToTable(Shared.GetEntitiesWithClassname("Player"))
-   for a=1,#RBPSawards do
-        for p = 1, #playerList do
-            // todo Cout:SendMessageToClient(playerList[p], "awards",{award = RBPSawards[a].message})
-            
-            /*if a == #RBPSawards or a == RBPSadvancedConfig.awardsMax then
-                Cout:SendMessageToClient(playerList[p], "showAwards",{msg = "no msg"})
-            end */
-        end
-        
-        /*if a == #RBPSawards or a == RBPSadvancedConfig.awardsMax then
-            break
-        end*/
-   end
-end
+    local AwardMessage = {}
+    AwardMessage.message = ""    
+    AwardMessage.duration = Plugin.Config.AwardMsgTime
+    
+    for i=1,Plugin.Config.ShowNumAwards do
+        if RBPSawards[i].message == nil then break end
+        AwardMessage.message = AwardMessage.message .. RBPSawards[i].message .. "\n"
+    end 
+    Server.SendNetworkMessage( "Shine_StatsAwards", AwardMessage, true )
+ end
 
 function Plugin:addAward(award)
     RBPSnextAwardId = RBPSnextAwardId +1
