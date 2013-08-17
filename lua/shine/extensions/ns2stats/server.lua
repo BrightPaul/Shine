@@ -18,10 +18,10 @@ Plugin.DefaultConfig =
 {
     Statsonline = true, // Upload stats?
     Statusreport = true, // send Status to NS2Stats every min
-    WebsiteUrl = "http://ns2stats.com", //this is url which is shown in player private messages, so its for advertising
-    WebsiteDataUrl = "http://ns2stats.com/api/sendlog", //this is url where posted data is send and where it is parsed into database
-    WebsiteStatusUrl="http://ns2stats.com/api/sendstatus", //this is url where posted data is send on status sends
-    WebsiteApiUrl = "http://ns2stats.com/api",
+    WebsiteUrl = "http://dev.ns2stats.com", //this is url which is shown in player private messages, so its for advertising
+    WebsiteDataUrl = "http://dev.ns2stats.com/api/sendlog", //this is url where posted data is send and where it is parsed into database
+    WebsiteStatusUrl="http://dev.ns2stats.com/api/sendstatus", //this is url where posted data is send on status sends
+    WebsiteApiUrl = "http://dev.ns2stats.com/api",
     Assists = true, //show Assist in Scoreboard and addpoints?
     Awards = true, //show award
     ShowNumAwards = 4, //how many awards should be shown at the end of the game?
@@ -58,7 +58,7 @@ Plugin.Players = {}
 
 //values needed by NS2Stats
 logInit = false
-RBPSlogPartNumber = 1
+Plugin.RBPSlogPartNumber = 1
 RBPSsuccessfulSends = 0
 RBPSresendCount = 0
 Gamestarted = 0
@@ -119,14 +119,15 @@ end
 
 //Damage Dealt
 function Plugin:OnDamageDealt(DamageMixin, damage, target, point, direction, surface, altMode, showtracer)
+    if DamageMixin == nil then return end //Granades + Flame
     local attacker = DamageMixin:GetParent()
+    if attacker == nil then return end
+    if damage == 0 then  Plugin:addMissToLog(attacker) return end
     local damageType = kDamageType.Normal
     if DamageMixin.GetDamageType then
             damageType = DamageMixin:GetDamageType() end
-    local doer = attacker:GetActiveWeapon()
-    if damage>0 then 
+    local doer = attacker:GetActiveWeapon() 
     Plugin:addHitToLog(target, attacker, doer, damage, damageType)
-    else Plugin:addMissToLog(attacker) end
 end
 
 //Chatlogging
@@ -163,9 +164,12 @@ end
 
 //Player gets heal
 function Plugin:OnPlayerGetHealed( Player )
+    local playerid = Plugin:GetId(Player:GetClient())
     // player Backed Up?
      if Player:getHealth() >= 0.8 * Player:getmaxHealth() then
-        table.Empty(Plugin.Assists[Plugin:GetId(Player:GetClient())]) //drop Assists
+       for key,taulu in pairs(Plugin.Players) do
+           Plugin.Assists[playerid][taulu.steamId] = false //reset assist table
+      end
     end 
 end
 
@@ -219,8 +223,7 @@ function Plugin:OnConstructInit( Building )
 end
 
 //Building built
-function  Plugin:OnFinishedBuilt(ConstructMixin, builder)
-    //fix logging before round has started
+function  Plugin:OnFinishedBuilt(ConstructMixin, builder)    
     local techId = ConstructMixin:GetTechId()
     local strloc = ConstructMixin:GetOrigin()
     local client = Server.GetOwner(builder)
@@ -430,9 +433,9 @@ function Plugin:EndGame( Gamerules, WinningTeam )
         if Plugin.Config.Statsonline then Plugin:sendData()  end //senddata also clears log
         GameHasStarted = false
         //Resets all Stats
-        RBPSgameFinished = 0
-        RBPSlogPartNumber = 1
+        RBPSgameFinished = 0        
         RBPSsuccessfulSends = 0
+        Plugin.RBPSlogPartNumber = 1
         Plugin:addLog({action="game_reset"})       
     
 end
@@ -603,14 +606,14 @@ function Plugin:sendData()
     {
         key = self.Config.ServerKey,
         roundlog = RBPSlog,
-        part_number = RBPSlogPartNumber,
+        part_number = Plugin.RBPSlogPartNumber,
         last_part = RBPSgameFinished,
         map = Shared.GetMapName(),
     }
     
     RBPSlastGameFinished = RBPSgameFinished
     if RBPSlastLog == nil then
-    RBPSlastLogPartNumber = RBPSlogPartNumber	
+    RBPSlastLogPartNumber = Plugin.RBPSlogPartNumber	
     RBPSlastLog = RBPSlog
     Plugin:initLog() //clears log	
     else //if we still have data in last log, we wont send data normally, since it would be duplicated data
@@ -640,7 +643,7 @@ function Plugin:onHTTPResponseFromSend(client,action,response,status)
             if string.len(response)>0 then //if we got somedata, that means send was completed
                 RBPSlastLog = nil
                 RBPSsuccessfulSends = RBPSsuccessfulSends +1
-                 if string.find(response,"Server log empty",nil, true) == nill then RBPSlogPartNumber = RBPSlogPartNumber + 1 end
+                 if string.find(response,"Server log empty",nil, true) == nill then Plugin.RBPSlogPartNumber = Plugin.RBPSlogPartNumber + 1 end
             end
         
             if message.other then
@@ -661,7 +664,7 @@ function Plugin:onHTTPResponseFromSend(client,action,response,status)
             if string.len(response)>0 then //if we got somedata, that means send was completed
                 RBPSlastLog = nil
                 RBPSsuccessfulSends = RBPSsuccessfulSends +1
-                if string.find(response,"Server log empty",nil, true) == nill then RBPSlogPartNumber = RBPSlogPartNumber + 1 end
+                if string.find(response,"Server log empty",nil, true) == nill then Plugin.RBPSlogPartNumber = Plugin.RBPSlogPartNumber + 1 end
             end
             Notify("NS2Stats.org: (" .. response .. ")")
     end
@@ -761,7 +764,9 @@ function Plugin:addKill(attacker_steamId,target_steamId)
         elseif  Plugin.Assists[target_steamId] ~= nil then            
             if Plugin.Assists[target_steamId][taulu.steamId] ~= nil then
                 if Plugin.Assists[target_steamId][taulu.steamId] == true then
-                    Plugin:addAssists(taulu.steamId,target_steamId) end
+                    Plugin:addAssists(taulu.steamId,target_steamId)
+                    Plugin.Assists[target_steamId][taulu.steamId] = false
+                end
             end
         end      
         
@@ -1053,7 +1058,6 @@ function Plugin:updateWeaponData(RBPSplayer)
 end
 
 function Plugin:OnLifeformChanged(Player, oldEntityId, newEntityId)
-   if not GameHasStarted then return end
    // search for playername in players table if its there player is real and lifeform change should be tracked
    if tostring(Player.name) ~= nil and tostring(Player.name) ~= "NSPlayer" then
      for key,taulu in pairs(Plugin.Players) do
@@ -1336,8 +1340,7 @@ function Plugin:addMissToLog(attacker)
 
 end
 
-function Plugin:addHitToLog(target, attacker, doer, damage, damageType) 
-    if not attacker or not doer or not target then return end  
+function Plugin:addHitToLog(target, attacker, doer, damage, damageType)    
     if target:isa("Player") and attacker:isa("Player") then
         local aOrigin = attacker:GetOrigin()
         local tOrigin = target:GetOrigin()
@@ -1629,6 +1632,8 @@ end
 
 //For Bots
 function Plugin:GetIdbyName(Name)
+    //for public realease 
+    //Plugin.Config.Statsonline = false
     if not Name then return end
     local newId=""
     local letters = " (){}[]/.,+-=?!*1234567890aAbBcCdDeEfFgGhHiIjJkKlLmMnNoOpPqQrRsStTuUvVwWxXyYzZ"
@@ -1651,6 +1656,7 @@ function Plugin:GetIdbyName(Name)
 end
 
 function Plugin:GetId(Client)
+    if Client == nil then return end 
     if not Client:GetIsVirtual() then return Client:GetUserId() end
     return Plugin:GetIdbyName(Client:GetPlayer():GetName())    
 end
