@@ -706,7 +706,8 @@ function Plugin:UpdatePlayerInTable(client)
         --Jos taulun(pelaajan) steamid on sama kuin etsitt‰v‰ niin p‰ivitet‰‰n tiedot.
         if  taulu["steamId"] == steamId  then
             taulu.teamnumber = player:GetTeam():GetTeamNumber()
-            taulu.lifeform = player:GetMapName()  
+            taulu.lifeform = player:GetMapName()
+            taulu.score = player.score  
             if player:GetIsAlive() == false then
                 taulu.damageTaken = {}
                 taulu.killstreak = 0
@@ -841,6 +842,7 @@ end
 //addPlayertotable
 function Plugin:addPlayerToTable(client)
     if not client then return end
+    if Plugin:GetId(client) == nil then return end
     if Plugin:IsClientInTable(client) == false then	
         table.insert(Plugin.Players, Plugin:createPlayerTable(client))          
     else
@@ -1425,7 +1427,7 @@ function Plugin:addHitToLog(target, attacker, doer, damage, damageType)
 end
 
 function Plugin:addDeathToLog(target, attacker, doer)
-    if attacker ~= nil and doer ~= nil then
+    if attacker ~= nil and doer ~= nil and target ~= nil then
         local attackerOrigin = attacker:GetOrigin()
         local targetWeapon = "none"
         local targetOrigin = target:GetOrigin()
@@ -1437,7 +1439,7 @@ function Plugin:addDeathToLog(target, attacker, doer)
         end
 
         //Jos on quitannu servulta justiin ennen tjsp niin ei ole clientti‰ ja erroria pukkaa. (uwelta kopsasin)
-        if attacker_client and target_client then
+        if attacker_client ~= nil and target_client ~= nil then
             local deathLog =
             {
                 
@@ -1633,6 +1635,7 @@ function Plugin:GetIdbyName(Name)
     //for public realease 
     //Plugin.Config.Statsonline = false
     if not Name then return end
+    if string.find(Name,"[BOT]",nil,true) == nil then return end
     local newId=""
     local letters = " (){}[]/.,+-=?!*1234567890aAbBcCdDeEfFgGhHiIjJkKlLmMnNoOpPqQrRsStTuUvVwWxXyYzZ"
     local input = tostring(Name)
@@ -1653,10 +1656,10 @@ function Plugin:GetIdbyName(Name)
     return newId
 end
 
-function Plugin:GetId(Client)
-    if not Client then return end
-    if not Client:GetIsVirtual() then return Client:GetUserId() end
-    return Plugin:GetIdbyName(Client:GetPlayer():GetName())    
+function Plugin:GetId(client)
+    if client==nil then return -1 end
+    if not client:GetIsVirtual() then return client:GetUserId() end
+    return Plugin:GetIdbyName(client:GetPlayer():GetName())    
 end
 
 //Awards
