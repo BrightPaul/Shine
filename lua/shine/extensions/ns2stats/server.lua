@@ -754,9 +754,11 @@ function Plugin:addKill(attacker_steamId,target_steamId)
         //add Assists
         elseif  Plugin.Assists[target_steamId] ~= nil then            
             if Plugin.Assists[target_steamId][taulu.steamId] ~= nil then
-                if Plugin.Assists[target_steamId][taulu.steamId] == true then
-                    Plugin:addAssists(taulu.steamId,target_steamId)
-                    Plugin.Assists[target_steamId][taulu.steamId] = false
+                if Plugin.Assists[target_steamId][taulu.steamId] > 0 then
+                    //more than 12 sec gone?
+                    local time = Shared.GetTime()- Plugin.Assists[target_steamId][taulu.steamId]
+                    if time<12 then Plugin:addAssists(taulu.steamId,target_steamId) end
+                    Plugin.Assists[target_steamId][taulu.steamId] = 0
                 end
             end
         end      
@@ -1376,12 +1378,8 @@ function Plugin:addHitToLog(target, attacker, doer, damage, damageType)
         local target_id = Plugin:GetId(target:GetClient())        
         if target_id == nil or attacker_id == nil then return end           
         Plugin:playerAddDamageTaken(Plugin:GetId(attacker:GetClient()), Plugin:GetId(target:GetClient()))     
-        if Plugin.Assists[target_id] == nil then Plugin.Assists[target_id] = {} end
-        Plugin.Assists[target_id][attacker_id] = true
-        //after 12 sec delete assists
-        Shine.Timer.Simple( 12, function(target_id,attacker_id)
-            Plugin.Assists[target_id][attacker_id] = false
-        end )
+        if Plugin.Assists[target_id] == nil then Plugin.Assists[target_id] = {} end       
+        Plugin.Assists[target_id][attacker_id] = Shared.GetTime()
         
     else //target is a structure
         local structureOrigin = target:GetOrigin()
