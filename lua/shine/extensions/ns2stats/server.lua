@@ -40,7 +40,6 @@ Plugin.CheckConfig = true
 Shine.Hook.SetupClassHook( "DamageMixin", "DoDamage", "OnDamageDealt", "PassivePost" )
 Shine.Hook.SetupClassHook("ResearchMixin","TechResearched","OnTechResearched","PassivePost")
 Shine.Hook.SetupClassHook("ResearchMixin","SetResearching","OnTechStartResearch","PassivePre")
-Shine.Hook.SetupClassHook("Player","addHealth","OnPlayerGetHealed","PassivePost")
 Shine.Hook.SetupClassHook("ConstructMixin","SetConstructionComplete","OnFinishedBuilt","PassivePost")
 Shine.Hook.SetupClassHook("ResearchMixin","OnResearchCancel","addUpgradeAbortedToLog","PassivePost")
 Shine.Hook.SetupClassHook("UpgradableMixin","RemoveUpgrade","addUpgradeLostToLog","PassivePost")
@@ -163,15 +162,7 @@ function Plugin:OnPlayerJump(Player)
 end
 
 //Player gets heal
-function Plugin:OnPlayerGetHealed( Player )
-    local playerid = Plugin:GetId(Player:GetClient())
-    // player Backed Up?
-     if Player:getHealth() >= 0.8 * Player:getmaxHealth() then
-       for key,taulu in pairs(Plugin.Players) do
-           Plugin.Assists[playerid][taulu.steamId] = false //reset assist table
-      end
-    end 
-end
+//add Supports
 
 //Team
 
@@ -1382,12 +1373,15 @@ function Plugin:addHitToLog(target, attacker, doer, damage, damageType)
         Plugin:addLog(hitLog)
         Plugin:weaponsAddHit(attacker, doer:GetMapName(), damage)
         local attacker_id = Plugin:GetId(attacker:GetClient())
-        local target_id = Plugin:GetId(target:GetClient())
-        //fix for some bugs todo: track these bugs
+        local target_id = Plugin:GetId(target:GetClient())        
         if target_id == nil or attacker_id == nil then return end           
         Plugin:playerAddDamageTaken(Plugin:GetId(attacker:GetClient()), Plugin:GetId(target:GetClient()))     
         if Plugin.Assists[target_id] == nil then Plugin.Assists[target_id] = {} end
         Plugin.Assists[target_id][attacker_id] = true
+        //after 12 sec delete assists
+        Shine.Timer.Simple( 12, function(target_id,attacker_id)
+            Plugin.Assists[target_id][attacker_id] = false
+        end )
         
     else //target is a structure
         local structureOrigin = target:GetOrigin()
