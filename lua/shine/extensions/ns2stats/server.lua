@@ -122,7 +122,7 @@ function Plugin:OnDamageDealt(DamageMixin, damage, target, point, direction, sur
     if DamageMixin == nil then return end //Granades + Flame
     local attacker = DamageMixin:GetParent()
     if attacker == nil then return end
-    if damage == 0 then  Plugin:addMissToLog(attacker) return end
+    if damage == 0 or target == nil then Plugin:addMissToLog(attacker) return end
     local damageType = kDamageType.Normal
     if DamageMixin.GetDamageType then
             damageType = DamageMixin:GetDamageType() end
@@ -442,7 +442,7 @@ end
 
 //PlayerConnected
 function Plugin:ClientConfirmConnect( Client )
-    if not Client then return end   
+    if not Client then return end      
     Plugin:addPlayerToTable(Client)
 end
 
@@ -694,9 +694,8 @@ end
 
 // update Stat 
 function Plugin:UpdatePlayerInTable(client)
-    if not client then return end
-    local player = client:GetPlayer()
-    
+    if not client then return end    
+    local player = client:GetPlayer()    
     if player == nil then return end
     
     local steamId = Plugin:GetId(client)
@@ -842,7 +841,6 @@ end
 //addPlayertotable
 function Plugin:addPlayerToTable(client)
     if not client then return end
-    if string.find(client:GetPlayer().name,"Bot",nil,true) ~= nil and client:GetIsVirtual() then return end
     if Plugin:IsClientInTable(client) == false then	
         table.insert(Plugin.Players, Plugin:createPlayerTable(client))          
     else
@@ -1656,7 +1654,7 @@ function Plugin:GetIdbyName(Name)
 end
 
 function Plugin:GetId(Client)
-    if Client == nil then return end 
+    if not Client then return end
     if not Client:GetIsVirtual() then return Client:GetUserId() end
     return Plugin:GetIdbyName(Client:GetPlayer():GetName())    
 end
