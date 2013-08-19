@@ -1618,6 +1618,14 @@ function Plugin:CreateCommands()
         end
     end)
     Verify:Help ("Sets yourself as serveradmin at NS2Stats.com")
+    
+    local Tag = self:BindCommand( "sh_addtag","addtag",function(Client,tag)
+        if Shine:HasAccess( Client, "sh_addtag" ) then
+            table.insert(Plugin.Config.Tags, tag)            
+        end
+    end)    
+    Tag:AddParam{ Type = "string",TakeRestOfLine = true,MaxLength = kMaxChatLength}
+    Tag:Help ("Adds the given tag to the Stats")
 end
 
 //Get NS2 IDs
