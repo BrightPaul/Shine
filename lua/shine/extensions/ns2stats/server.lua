@@ -1595,7 +1595,7 @@ function Plugin:CreateCommands()
             else Client.ShowWebpage(url)
             end
         end)      
-    end)
+    end,true)
     // ShowPStats:AddParam{ Type = "string",Optimal = true ,TakeRestOfLine = true,Default ="", MaxLength = kMaxChatLength}
     ShowPStats:Help("Shows stats of given <player> or if no given <player> from yourself")
     
@@ -1608,21 +1608,18 @@ function Plugin:CreateCommands()
     	    if self.Config.IngameBrowser then Server.SendNetworkMessage( Client, "Shine_Web", { URL = url }, true )
     	    else Client.ShowWebpage(url) end
         end)        
-    end)
+    end,true)
     ShowSStats:Help("Shows server stats")
     
     local Verify = self:BindCommand( "sh_verify", {"verifystats","verify"},function(Client)
-        if Shine:HasAccess( Client, "sh_verify" ) then
             Shared.SendHTTPRequest(self.Config.WebsiteUrl .. "/api/verifyServer/" .. Plugin:GetId(Client) .. "?s=479qeuehq2829&key=" .. self.Config.ServerKey, "GET",
-            function(response) ServerAdminPrint(Client,response) end)
-        end
+            function(response) ServerAdminPrint(Client,response) end)       
     end)
     Verify:Help ("Sets yourself as serveradmin at NS2Stats.com")
     
-    local Tag = self:BindCommand( "sh_addtag","addtag",function(Client,tag)
-        if Shine:HasAccess( Client, "sh_addtag" ) then
-            table.insert(Plugin.Config.Tags, tag)            
-        end
+    local Tag = self:BindCommand( "sh_addtag","addtag",function(tag)
+        table.insert(Plugin.Config.Tags, tag)            
+        
     end)    
     Tag:AddParam{ Type = "string",TakeRestOfLine = true,MaxLength = kMaxChatLength}
     Tag:Help ("Adds the given tag to the Stats")
