@@ -82,18 +82,18 @@ function Plugin:EndGame(Gamerules, WinningTeam)
         local WinningMessage = {}
         WinningMessage.message = ""
         WinningMessage.duration = Plugin.Config.Winningmeassagetime
-        if i<=1 then// aliens won
+        if i<=1 then // aliens won
             WinningMessage.message = Winningmsgaliens
             Server.SendNetworkMessage( "Shine_WinningMsg", WinningMessage, true )
             local mapname = Plugin.Config.Startmap
-            Shine.Timer.Simple(WinningMessage.duration, function(mapname) MapCycle_ChangeMap(mapname) end
-            return end
+            Shine.Timer.Simple(WinningMessage.duration, function(mapname) MapCycle_ChangeMap(mapname) end)
+            return
         elseif i >= #self.Config.MapCycle then //marines won
             WinningMessage.message = Winningmsgmarines
             Server.SendNetworkMessage( "Shine_WinningMsg", WinningMessage, true )            
             local mapname = Plugin.Config.Startmap
-            Shine.Timer.Simple(WinningMessage.duration, function(mapname) MapCycle_ChangeMap(mapname) end
-            return end
+            Shine.Timer.Simple(WinningMessage.duration, function(mapname) MapCycle_ChangeMap(mapname) end)
+            return
         end
         local Winnernr = WinningTeam:GetTeamNumber()
         if Winnernr == 1 then //marines won round
@@ -101,7 +101,7 @@ function Plugin:EndGame(Gamerules, WinningTeam)
             Shine.Timer.Simple(10, function(mapname) MapCycle_ChangeMap(mapname) end)
         else
             local mapname = self.Config.MapCycle[i+1]
-            Shine.Timer.Simple(10, function(mapname) MapCycle_ChangeMap(mapname) end )
+            Shine.Timer.Simple(10, function(mapname) MapCycle_ChangeMap(mapname) end)
         end 
 end
 
