@@ -100,7 +100,7 @@ function Plugin:EndGame(Gamerules, WinningTeam)
             local mapname = self.Config.MapCycle[i-1]
             Shine.Timer.Simple(10, function(mapname) MapCycle_ChangeMap(mapname) end)
         else
-            local mapname = self.Config.MapCycle[i-1]
+            local mapname = self.Config.MapCycle[i+1]
             Shine.Timer.Simple(10, function(mapname) MapCycle_ChangeMap(mapname) end )
         end 
 end
