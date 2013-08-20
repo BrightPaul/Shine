@@ -3,6 +3,7 @@ Shared stuff.
 ]]
 
 local Plugin = {}
+local Shine = Shine
 
 Shine:RegisterExtension( "ns2stats", Plugin )
 
@@ -14,7 +15,6 @@ Shared.RegisterNetworkMessage( "Shine_StatsAwards", AwardMessage )
 
 if Server then return end
 
-local Shine = Shine
 local VoteMenu = Shine.VoteMenu
 
 function Plugin:Initialise()
