@@ -27,7 +27,7 @@ if Server then return end
 local VoteMenu = Shine.VoteMenu
 
 function Plugin:Initialise()
-    self.Enabled = true
+   self.Enabled = true
    return true 
 end
 

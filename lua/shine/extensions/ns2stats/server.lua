@@ -79,14 +79,11 @@ function Plugin:Initialise()
             function(response) Plugin:acceptKey(response) end)
     end
     
-    local SendConfig = {}
-    SendConfig.WebsiteUrl = self.Config.WebsiteUrl
-    SendConfig.WebsiteDataUrl = self.Config.WebsiteDataUrl
-    SendConfig.WebsiteStatusUrl = self.Config.WebsiteStatusUrl
-    SendConfig.WebsiteApiUrl = self.Config.WebsiteApiUrl
-    SendConfig.SendMapData = self.Config.SendMapData
+    local Config = {}
+    Config.WebsiteApiUrl = self.Config.WebsiteApiUrl
+    Config.SendMapData = self.Config.SendMapData
     
-    Server.SendNetworkMessage("Shine_StatsConfig",SendConfig,true)
+    Server.SendNetworkMessage("Shine_StatsConfig",Config,true)
      
     //register Commands
      Plugin:CreateCommands()
@@ -465,15 +462,10 @@ end
 //PlayerConnected
 function Plugin:ClientConfirmConnect( Client )
     if not Client then return end 
- 
-    local SendConfig = {}
-    SendConfig.WebsiteUrl = self.Config.WebsiteUrl
-    SendConfig.WebsiteDataUrl = self.Config.WebsiteDataUrl
-    SendConfig.WebsiteStatusUrl = self.Config.WebsiteStatusUrl
-    SendConfig.WebsiteApiUrl = self.Config.WebsiteApiUrl
-    SendConfig.SendMapData = self.Config.SendMapData    
-    Server.SendNetworkMessage(Client,"Shine_StatsConfig",SendConfig,true)
-    
+    local Config = {}
+    Config.WebsiteApiUrl = self.Config.WebsiteApiUrl
+    Config.SendMapData = self.Config.SendMapData    
+    Server.SendNetworkMessage(Client,"Shine_StatsConfig",Config,true)    
     Plugin:addPlayerToTable(Client)
 end
 
