@@ -29,7 +29,8 @@ Plugin.DefaultConfig =
     LogChat = true, //log the chat?
     ServerKey = "",
     IngameBrowser = true, // use ingame browser or Steamoverlay 
-    Tags = {}, //Tags added to log  
+    Tags = {}, //Tags added to log 
+    Competitive = false,
     SendTime = 5, //Send after how many min?
 }
 
@@ -1590,7 +1591,7 @@ function Plugin:AddServerInfos(params)
     params.mods = mods
     params.awards = RBPSawards
     params.tags = self.Config.Tags
-    params.private = false
+    params.private = self.Config.Competitive
     params.autoarrange = false //use Shine plugin settings later?
     params.serverInfo =
     {
