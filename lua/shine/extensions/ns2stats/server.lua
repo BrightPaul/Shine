@@ -17,6 +17,7 @@ Plugin.ConfigName = "Ns2Stats.json"
 Plugin.DefaultConfig =
 {
     Statsonline = true, // Upload stats?
+    SendMapData = true, //Send Mapdata
     Statusreport = true, // send Status to NS2Stats every min
     WebsiteUrl = "http://dev.ns2stats.com", //this is url which is shown in player private messages, so its for advertising
     WebsiteDataUrl = "http://dev.ns2stats.com/api/sendlog", //this is url where posted data is send and where it is parsed into database
@@ -78,6 +79,15 @@ function Plugin:Initialise()
             function(response) Plugin:acceptKey(response) end)
     end
     
+    local SendConfig = {}
+    SendConfig.WebsiteUrl = self.Config.WebsiteUrl
+    SendConfig.WebsiteDataUrl = self.Config.WebsiteDataUrl
+    SendConfig.WebsiteStatusUrl = self.Config.WebsiteStatusUrl
+    SendConfig.WebsiteApiUrl = self.Config.WebsiteApiUrl
+    SendConfig.SendMapData = self.Config.SendMapData
+    
+    Server.SendNetworkMessage("Shine_StatsConfig",SendConfig,true)
+     
     //register Commands
      Plugin:CreateCommands()
      
@@ -454,7 +464,16 @@ end
 
 //PlayerConnected
 function Plugin:ClientConfirmConnect( Client )
-    if not Client then return end      
+    if not Client then return end 
+ 
+    local SendConfig = {}
+    SendConfig.WebsiteUrl = self.Config.WebsiteUrl
+    SendConfig.WebsiteDataUrl = self.Config.WebsiteDataUrl
+    SendConfig.WebsiteStatusUrl = self.Config.WebsiteStatusUrl
+    SendConfig.WebsiteApiUrl = self.Config.WebsiteApiUrl
+    SendConfig.SendMapData = self.Config.SendMapData    
+    Server.SendNetworkMessage(Client,"Shine_StatsConfig",SendConfig,true)
+    
     Plugin:addPlayerToTable(Client)
 end
 

@@ -13,6 +13,15 @@ duration = "integer (0 to 1800)"
 }
 Shared.RegisterNetworkMessage( "Shine_StatsAwards", AwardMessage )
 
+local Config = {
+    WebsiteUrl = "string (255)",
+    WebsiteDataUrl = "string (255)",
+    WebsiteStatusUrl= "string (255)",
+    WebsiteApiUrl = "string (255)",
+    SendMapData = "boolean",
+}
+Shared.RegisterNetworkMessage( "Shine_StatsConfig", Config )
+
 if Server then return end
 
 local VoteMenu = Shine.VoteMenu
@@ -22,6 +31,48 @@ function Plugin:Initialise()
    return true 
 end
 
+
+//get Config
+Client.HookNetworkMessage( "Shine_StatsAwards", function( Message )
+     self.WebsiteUrl = Meassage.WebsiteUrl
+     self.WebsiteDataUrl = Message.WebsiteDataUrl
+     self.WebsiteStatusUrl = Message.WebsiteStatusUrl 
+     self.WebsiteApiUrl = Message.WebsiteApiUrl
+     self.SendMapData = Message.SendMapData
+end)
+
+//Get Mapdata
+Shine.Hook.SetupClassHook( "GUIMinimap", "InitializeBackground", "Mapdata", "PassivePost" )
+
+function Plugin:Mapdata(GUIMinimap)
+    if self.SendMapData then
+        local jsonvalues = {
+            scaleX = Client.minimapExtentScale.x,
+            scaleY = Client.minimapExtentScale.y,
+            scaleZ = Client.minimapExtentScale.z,
+            originX = Client.minimapExtentOrigin.x,
+            originY = Client.minimapExtentOrigin.y,
+            originZ = Client.minimapExtentOrigin.z,
+            plotToMapLin_X = GUIMinimap.plotToMapLinX,
+            plotToMapLin_Y = GUIMinimap.plotToMapLinY,
+            plotToMapConst_x = GUIMinimap.plotToMapConstX,
+            plotToMapConst_y = GUIMinimap.plotToMapConstY,
+            backgroundWidth = GUIMinimap.kBackgroundWidth,
+            backgroundHeight = GUIMinimap.kBackgroundHeight,
+            scale = self.scale
+        }
+        
+        local params =
+        {
+            secret = "jokukovasalasana",
+            mapName = Shared.GetMapName(),
+            jsonvalues = json.encode(jsonvalues)
+        }
+        Shared.SendHTTPRequest(RBPS.websiteApiUrl .."/updatemapdata", "POST", params, function(response,status) if RBPSdebug then Shared.Message(response) end end)	
+        RBPSsendMapData = false
+    end
+ end
+ 
 //Votemenu
 VoteMenu:AddPage( "Stats", function( self )
     self:AddSideButton( "Show my Stats", function()
