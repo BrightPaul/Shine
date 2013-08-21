@@ -68,8 +68,8 @@ function Plugin:Mapdata(GUIMinimap)
             mapName = Shared.GetMapName(),
             jsonvalues = json.encode(jsonvalues)
         }
-        Shared.SendHTTPRequest(RBPS.websiteApiUrl .."/updatemapdata", "POST", params, function(response,status) if RBPSdebug then Shared.Message(response) end end)	
-        RBPSsendMapData = false
+        Shared.SendHTTPRequest(self.WebsiteApiUrl .."/updatemapdata", "POST", params, function(response,status) if RBPSdebug then Shared.Message(response) end end)	
+        self.SendMapData = false
     end
  end
  
