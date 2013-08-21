@@ -49,7 +49,9 @@ Shine.Hook.SetupClassHook("DropPack","OnTouch","OnPickableItemPicked","PassivePo
 Shine.Hook.SetupClassHook("PlayerBot","UpdateName","OnBotRenamed","PassivePost")
 Shine.Hook.SetupClassHook("Player","SetName","PlayerNameChange","PassivePost")
 Shine.Hook.SetupClassHook("Player","OnEntityChange","OnLifeformChanged","PassivePost")
-Shine.Hook.SetupClassHook("Player","OnJump","OnPlayerJump","PassivePost") 
+Shine.Hook.SetupClassHook("Player","OnJump","OnPlayerJump","PassivePost")
+Shine.Hook.SetupClassHook("Player","SetScoreboardChanged","OnPlayerScoreChanged","PassivePost")
+Shine.Hook.SetupClassHook("Location","Reset","OnGameReset","PassivePre") 
    
 //Score datatable 
 Plugin.Assists = {}
@@ -150,6 +152,11 @@ function Plugin:OnEntityKilled(Gamerules, TargetEntity, Attacker, Inflictor, Poi
     elseif TargetEntity:isa("Player") then Plugin:addDeathToLog(TargetEntity, Attacker, Inflictor) end       
 end
 
+//score changed
+function Plugin:OnPlayerScoreChanged(Player,state)
+    if not Plugin:getPlayerByClient(Player:GetClient()) then return end //Player not in Table
+    if state then Plugin:UpdatePlayerInTable(Player:GetClient()) end
+end
 //Player jumps
 function Plugin:OnPlayerJump(Player)
  for key,taulu in pairs(Plugin.Players) do
@@ -366,27 +373,39 @@ function Plugin:addUpgradeAbortedToLog(ResearchMixin, researchNode)
     Plugin:addLog(newUpgrade)
 
 end
-
+    
 // Game events 
+
+//fix for multiplied logging
+allowreset = true
+
+//Game reset
+function Plugin:OnGameReset()
+    if allowreset then    
+    Plugin:addLog({action="game_reset"})
+    allowreset = false
+    end    
+end
 
 //Gamestart
 function Plugin:SetGameState( Gamerules, NewState, OldState )
     Currentgamestate = NewState    
     if NewState == kGameState.Started then
+         allowreset = true
          GameHasStarted = true             
          Gamestarted = Shared.GetTime()
          Plugin:addLog({action = "game_start"})  
-         //to reset PlayerList
-         Plugin:clearPlayersTable()
-         local allPlayers = Shared.GetEntitiesWithClassname("Player")
-            for index, fromPlayer in ientitylist(allPlayers) do
-                local client = fromPlayer:GetClient()
-                Plugin:addPlayerToTable(client)
-                //call lifeform_changed
-                Plugin:OnLifeformChanged(fromPlayer,nil,nil)
-            end
-         //send Playerlist            
-         Plugin:addPlayersToLog(0)         
+        //to reset PlayerList
+        Plugin:clearPlayersTable()
+        local allPlayers = Shared.GetEntitiesWithClassname("Player")
+        for index, fromPlayer in ientitylist(allPlayers) do
+            local client = fromPlayer:GetClient()
+            Plugin:addPlayerToTable(client)
+            //call lifeform_changed
+            Plugin:OnLifeformChanged(fromPlayer,nil,nil)
+       end
+     //send Playerlist            
+     Plugin:addPlayersToLog(0)    
     end
 end
 
