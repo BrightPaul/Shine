@@ -14,38 +14,35 @@ duration = "integer (0 to 1800)"
 Shared.RegisterNetworkMessage( "Shine_StatsAwards", AwardMessage )
 
 local Config = {
-    WebsiteUrl = "string (255)",
-    WebsiteDataUrl = "string (255)",
-    WebsiteStatusUrl= "string (255)",
-    WebsiteApiUrl = "string (255)",
+    WebsiteApiUrl = "string(255)",
     SendMapData = "boolean",
 }
 Shared.RegisterNetworkMessage( "Shine_StatsConfig", Config )
 
 if Server then return end
 
+SendMapData = false
+WebsiteApiUrl = ""
+ 
 local VoteMenu = Shine.VoteMenu
 
 function Plugin:Initialise()
-   self.Enabled = true
+    self.Enabled = true
    return true 
 end
 
 
 //get Config
-Client.HookNetworkMessage( "Shine_StatsAwards", function( Message )
-     self.WebsiteUrl = Meassage.WebsiteUrl
-     self.WebsiteDataUrl = Message.WebsiteDataUrl
-     self.WebsiteStatusUrl = Message.WebsiteStatusUrl 
-     self.WebsiteApiUrl = Message.WebsiteApiUrl
-     self.SendMapData = Message.SendMapData
+Client.HookNetworkMessage( "Shine_StatsConfig", function( Message )
+     WebsiteApiUrl = Message.WebsiteApiUrl
+     SendMapData = Message.SendMapData
 end)
 
 //Get Mapdata
 Shine.Hook.SetupClassHook( "GUIMinimap", "InitializeBackground", "Mapdata", "PassivePost" )
 
 function Plugin:Mapdata(GUIMinimap)
-    if self.SendMapData then
+    if SendMapData then
         local jsonvalues = {
             scaleX = Client.minimapExtentScale.x,
             scaleY = Client.minimapExtentScale.y,
@@ -68,8 +65,8 @@ function Plugin:Mapdata(GUIMinimap)
             mapName = Shared.GetMapName(),
             jsonvalues = json.encode(jsonvalues)
         }
-        Shared.SendHTTPRequest(self.WebsiteApiUrl .."/updatemapdata", "POST", params, function(response,status) if RBPSdebug then Shared.Message(response) end end)	
-        self.SendMapData = false
+        Shared.SendHTTPRequest(WebsiteApiUrl .."/updatemapdata", "POST", params, function(response,status) if RBPSdebug then Shared.Message(response) end end)	
+        SendMapData = false
     end
  end
  
