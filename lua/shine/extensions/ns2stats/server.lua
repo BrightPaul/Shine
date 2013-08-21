@@ -191,8 +191,7 @@ end
 
 //Building Dropped
 function Plugin:OnConstructInit( Building )
-    local ID = Building:GetId()
-    local Name = Building:GetClassName()
+    local ID = Building:GetId()    
     local Team = Building:GetTeam()
 
     if not Team then return end
@@ -204,6 +203,8 @@ function Plugin:OnConstructInit( Building )
 
     local Client = Server.GetOwner( Owner )
     local techId = Building:GetTechId()
+    local name = EnumToString(kTechId, techId)
+    if name == "Hydra" or name == "GorgeTunnel" then return end //Gorge Buildings
     local strloc = Building:GetOrigin()
     local build=
     {
@@ -212,7 +213,7 @@ function Plugin:OnConstructInit( Building )
         steamId = Plugin:GetId(Client),
         team = Building:GetTeamNumber(),
         structure_cost = GetCostForTech(techId),
-        structure_name = EnumToString(kTechId, techId),
+        structure_name = name,
         structure_x = string.format("%.4f",strloc.x),
         structure_y = string.format("%.4f",strloc.y),
         structure_z = string.format("%.4f",strloc.z),
