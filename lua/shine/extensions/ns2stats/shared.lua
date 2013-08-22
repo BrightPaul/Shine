@@ -4,6 +4,7 @@ Shared stuff.
 
 local Plugin = {}
 local Shine = Shine
+local Notify = Shared.Message
 
 Shine:RegisterExtension( "ns2stats", Plugin )
 
@@ -19,15 +20,23 @@ local Config = {
 }
 Shared.RegisterNetworkMessage( "Shine_StatsConfig", Config )
 
+//Get Mapdata
+Shine.Hook.Add( "Think", "MinimapHook", function()
+    if GUIMinimap then
+        Shine.Hook.SetupClassHook("GUIMinimap","ShowMap","Mapdata","PassivePost" )
+        Shine.Hook.Remove( "Think", "ChatBoxHook" )
+    end
+end )
+
 if Server then return end
 
-SendMapData = false
-WebsiteApiUrl = ""
+local SendMapData = false
+local WebsiteApiUrl = ""
  
 local VoteMenu = Shine.VoteMenu
 
 function Plugin:Initialise()
-    self.Enabled = true
+    self.Enabled = true    
    return true 
 end
 
@@ -35,14 +44,11 @@ end
 //get Config
 Client.HookNetworkMessage( "Shine_StatsConfig", function( Message )
      WebsiteApiUrl = Message.WebsiteApiUrl
-     SendMapData = Message.SendMapData
+     SendMapData = Message.SendMapData    
 end)
 
-//Get Mapdata
-Shine.Hook.SetupClassHook( "GUIMinimap", "InitializeBackground", "Mapdata", "PassivePost" )
-
-function Plugin:Mapdata(GUIMinimap)
-    if SendMapData then
+function Plugin:Mapdata(GUIMinimap)    
+    if SendMapData then        
         local jsonvalues = {
             scaleX = Client.minimapExtentScale.x,
             scaleY = Client.minimapExtentScale.y,
@@ -56,7 +62,7 @@ function Plugin:Mapdata(GUIMinimap)
             plotToMapConst_y = GUIMinimap.plotToMapConstY,
             backgroundWidth = GUIMinimap.kBackgroundWidth,
             backgroundHeight = GUIMinimap.kBackgroundHeight,
-            scale = self.scale
+            scale = GUIMinimap.scale
         }
         
         local params =
@@ -65,7 +71,7 @@ function Plugin:Mapdata(GUIMinimap)
             mapName = Shared.GetMapName(),
             jsonvalues = json.encode(jsonvalues)
         }
-        Shared.SendHTTPRequest(WebsiteApiUrl .."/updatemapdata", "POST", params, function(response,status) if RBPSdebug then Shared.Message(response) end end)	
+        Shared.SendHTTPRequest(WebsiteApiUrl .."/updatemapdata", "POST", params, function(response,status) end)	
         SendMapData = false
     end
  end
@@ -100,4 +106,3 @@ end)
 function Plugin:Cleanup()
     self.Enabled = false
 end
-

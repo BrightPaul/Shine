@@ -78,13 +78,7 @@ function Plugin:Initialise()
         Shared.SendHTTPRequest(Plugin.Config.WebsiteUrl .. "/api/generateKey/?s=7g94389u3r89wujj3r892jhr9fwj", "GET",
             function(response) Plugin:acceptKey(response) end)
     end
-    
-    local Config = {}
-    Config.WebsiteApiUrl = self.Config.WebsiteApiUrl
-    Config.SendMapData = self.Config.SendMapData
-    
-    Server.SendNetworkMessage("Shine_StatsConfig",Config,true)
-     
+        
     //register Commands
      Plugin:CreateCommands()
      
@@ -162,6 +156,7 @@ end
 
 //score changed
 function Plugin:OnPlayerScoreChanged(Player,state)
+    if not GameHasStarted then return end
     if not Plugin:getPlayerByClient(Player:GetClient()) then return end //Player not in Table
     if state then Plugin:UpdatePlayerInTable(Player:GetClient()) end
 end
