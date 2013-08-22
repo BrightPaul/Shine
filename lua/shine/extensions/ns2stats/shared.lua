@@ -19,20 +19,21 @@ local Config = {
     SendMapData = "boolean",
 }
 Shared.RegisterNetworkMessage( "Shine_StatsConfig", Config )
+local SendMapData = false
+local WebsiteApiUrl = ""
 
 //Get Mapdata
 Shine.Hook.Add( "Think", "MinimapHook", function()
     if GUIMinimap then
+        if SendMapData
         Shine.Hook.SetupClassHook("GUIMinimap","ShowMap","Mapdata","PassivePost" )
+        end
         Shine.Hook.Remove( "Think", "ChatBoxHook" )
     end
 end )
 
 if Server then return end
 
-local SendMapData = false
-local WebsiteApiUrl = ""
- 
 local VoteMenu = Shine.VoteMenu
 
 function Plugin:Initialise()
