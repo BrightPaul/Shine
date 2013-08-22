@@ -25,7 +25,7 @@ local WebsiteApiUrl = ""
 //Get Mapdata
 Shine.Hook.Add( "Think", "MinimapHook", function()
     if GUIMinimap then
-        if SendMapData
+        if SendMapData then
         Shine.Hook.SetupClassHook("GUIMinimap","ShowMap","Mapdata","PassivePost" )
         end
         Shine.Hook.Remove( "Think", "ChatBoxHook" )
