@@ -1385,7 +1385,7 @@ function Plugin:addHitToLog(target, attacker, doer, damage, damageType)
             
             //Target
             target_steamId = Plugin:GetId(target:GetClient()),
-            target_team = target:GetTeam():GetTeamType(),
+            target_team = target:GetTeam():GetTeamNumber(),
             target_weapon = weapon,
             target_lifeform = target:GetMapName(),
             target_hp = target:GetHealth(),
@@ -1403,8 +1403,9 @@ function Plugin:addHitToLog(target, attacker, doer, damage, damageType)
         Plugin:weaponsAddHit(attacker, doer:GetMapName(), damage)
         local attacker_id = Plugin:GetId(attacker:GetClient())
         local target_id = Plugin:GetId(target:GetClient())        
-        if target_id == nil or attacker_id == nil then return end           
-        Plugin:playerAddDamageTaken(Plugin:GetId(attacker:GetClient()), Plugin:GetId(target:GetClient()))     
+        if target_id == nil or attacker_id == nil then return end  
+        if attacker:GetTeam():GetTeamNumber() ==  target:GetTeam():GetTeamNumber() then return end //no assist on own teammates         
+        Plugin:playerAddDamageTaken(Plugin:GetId(attacker:GetClient()), Plugin:GetId(target:GetClient()))            
         if Plugin.Assists[target_id] == nil then Plugin.Assists[target_id] = {} end       
         Plugin.Assists[target_id][attacker_id] = Shared.GetTime()
         
