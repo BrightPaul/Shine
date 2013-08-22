@@ -48,7 +48,8 @@ Client.HookNetworkMessage( "Shine_StatsConfig", function( Message )
 end)
 
 function Plugin:Mapdata(GUIMinimap)    
-    if SendMapData then        
+    if SendMapData then
+        SendMapData = false        
         local jsonvalues = {
             scaleX = Client.minimapExtentScale.x,
             scaleY = Client.minimapExtentScale.y,
@@ -71,8 +72,7 @@ function Plugin:Mapdata(GUIMinimap)
             mapName = Shared.GetMapName(),
             jsonvalues = json.encode(jsonvalues)
         }
-        Shared.SendHTTPRequest(WebsiteApiUrl .."/updatemapdata", "POST", params, function(response,status) end)	
-        SendMapData = false
+        Shared.SendHTTPRequest(WebsiteApiUrl .."/updatemapdata", "POST", params, function(response,status) end)       
     end
  end
  

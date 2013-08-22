@@ -17,7 +17,7 @@ Plugin.ConfigName = "Ns2Stats.json"
 Plugin.DefaultConfig =
 {
     Statsonline = true, // Upload stats?
-    SendMapData = true, //Send Mapdata
+    SendMapData = false, //Send Mapdata, only set true if minimap is missing at website or is incorrect
     Statusreport = true, // send Status to NS2Stats every min
     WebsiteUrl = "http://dev.ns2stats.com", //this is url which is shown in player private messages, so its for advertising
     WebsiteDataUrl = "http://dev.ns2stats.com/api/sendlog", //this is url where posted data is send and where it is parsed into database
@@ -31,7 +31,7 @@ Plugin.DefaultConfig =
     ServerKey = "",
     IngameBrowser = true, // use ingame browser or Steamoverlay 
     Tags = {}, //Tags added to log 
-    Competitive = false,
+    Competitive = false, // tag round as Competitive
     SendTime = 5, //Send after how many min?
 }
 
