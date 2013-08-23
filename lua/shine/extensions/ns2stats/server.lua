@@ -1660,7 +1660,7 @@ function Plugin:GetIdbyName(Name)
     //for public realease 
     //Plugin.Config.Statsonline = false
     if not Name then return end
-    if string.find(Name,"[BOT]",nil,true) == nil then return end
+    if string.find(Name,"[BOT]",nil,true) == nil then return -1 end
     local newId=""
     local letters = " (){}[]/.,+-=?!*1234567890aAbBcCdDeEfFgGhHiIjJkKlLmMnNoOpPqQrRsStTuUvVwWxXyYzZ"
     local input = tostring(Name)
@@ -1672,10 +1672,10 @@ function Plugin:GetIdbyName(Name)
         local num = string.find(letters,char,nil,true)
         newId = newId .. tostring(num)        
     end
-    while #newId < 10 do
+    while #newId < 12 do
         newId = newId .. "0"
     end       
-    newId = string.sub(newId, 1 , 10)  
+    newId = string.sub(newId, 1 , 12)  
     //make a int
     newId = tonumber(newId)
     return newId
