@@ -125,7 +125,7 @@ function Plugin:OnDamageDealt(DamageMixin, damage, target, point, direction, sur
     if DamageMixin == nil then return end //Granades + Flame
     local attacker = DamageMixin:GetParent()
     if attacker == nil then return end
-    if damage == 0 or target == nil then Plugin:addMissToLog(attacker) return end
+    if damage == 0 or not target then Plugin:addMissToLog(attacker) return end
     local damageType = kDamageType.Normal
     if DamageMixin.GetDamageType then
             damageType = DamageMixin:GetDamageType() end
@@ -455,7 +455,7 @@ function Plugin:EndGame( Gamerules, WinningTeam )
 end
 
 //PlayerConnected
-function Plugin:ClientConfirmConnect( Client )
+function Plugin:ClientConnect( Client )
     if not Client then return end 
     local Config = {}
     Config.WebsiteApiUrl = self.Config.WebsiteApiUrl
@@ -1403,7 +1403,7 @@ function Plugin:addHitToLog(target, attacker, doer, damage, damageType)
         Plugin:weaponsAddHit(attacker, doer:GetMapName(), damage)
         local attacker_id = Plugin:GetId(attacker:GetClient())
         local target_id = Plugin:GetId(target:GetClient())        
-        if target_id == nil or attacker_id == nil then return end  
+        if not target_id or not attacker_id then return end  
         if attacker:GetTeam():GetTeamNumber() ==  target:GetTeam():GetTeamNumber() then return end //no assist on own teammates         
         Plugin:playerAddDamageTaken(Plugin:GetId(attacker:GetClient()), Plugin:GetId(target:GetClient()))            
         if Plugin.Assists[target_id] == nil then Plugin.Assists[target_id] = {} end       
