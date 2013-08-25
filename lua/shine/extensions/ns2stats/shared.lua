@@ -24,11 +24,9 @@ local WebsiteApiUrl = ""
 
 //Get Mapdata
 Shine.Hook.Add( "Think", "MinimapHook", function()
-    if GUIMinimap then
-        if SendMapData then
+    if GUIMinimap then        
         Shine.Hook.SetupClassHook("GUIMinimap","ShowMap","Mapdata","PassivePost" )
-        end
-        Shine.Hook.Remove( "Think", "ChatBoxHook" )
+        Shine.Hook.Remove( "Think", "MinimapHook" )
     end
 end )
 
@@ -50,6 +48,7 @@ end)
 
 function Plugin:Mapdata(GUIMinimap)    
     if SendMapData then
+        Notify("MapData send")
         SendMapData = false        
         local jsonvalues = {
             scaleX = Client.minimapExtentScale.x,

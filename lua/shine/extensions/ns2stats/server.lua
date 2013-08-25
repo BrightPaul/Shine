@@ -121,11 +121,16 @@ end
 //All the Damage/Player Stuff
 
 //Damage Dealt
-function Plugin:OnDamageDealt(DamageMixin, damage, target, point, direction, surface, altMode, showtracer)
-    if DamageMixin == nil then return end //Granades + Flame
-    local attacker = DamageMixin:GetParent()
-    if attacker == nil then return end
+function Plugin:OnDamageDealt(DamageMixin, damage, target, point, direction, surface, altMode, showtracer)   
+    local attacker = DamageMixin
+    if DamageMixin:GetParent() and DamageMixin:GetParent():isa("Player") then
+            attacker = DamageMixin:GetParent()
+    elseif HasMixin(DamageMixin, "Owner") and DamageMixin:GetOwner() and DamageMixin:GetOwner():isa("Player") then
+            attacker = DamageMixin:GetOwner()
+    end
+    if not attacker:isa("Player") then return end 
     if damage == 0 or not target then Plugin:addMissToLog(attacker) return end
+    if target:isa("Ragdoll") then Plugin:addMissToLog(attacker) return end
     local damageType = kDamageType.Normal
     if DamageMixin.GetDamageType then
             damageType = DamageMixin:GetDamageType() end
@@ -480,7 +485,7 @@ end
 //Bots renamed
 function Plugin:OnBotRenamed(Bot)
     if Plugin:getPlayerByClient(Bot:GetPlayer():GetClient()) == nil then
-    Plugin:ClientConfirmConnect(Bot:GetPlayer():GetClient()) end       
+    Plugin:ClientConnect(Bot:GetPlayer():GetClient()) end       
 end
 
 // Player joins a team
@@ -714,12 +719,15 @@ end
 function Plugin:UpdatePlayerInTable(client)
     if not client then return end    
     local player = client:GetPlayer()    
-    if player == nil then return end
+    if not player then return end
+    if not player:GetTeam() then return end
     
     local steamId = Plugin:GetId(client)
     local origin = player:GetOrigin()
     local weapon = "none"
    
+    if not steamId then return end
+    
     for key,taulu in pairs(Plugin.Players) do
         --Jos taulun(pelaajan) steamid on sama kuin etsitt‰v‰ niin p‰ivitet‰‰n tiedot.
         if  taulu["steamId"] == steamId  then
@@ -1360,90 +1368,91 @@ function Plugin:addMissToLog(attacker)
 
 end
 
-function Plugin:addHitToLog(target, attacker, doer, damage, damageType)    
-    if target:isa("Player") and attacker:isa("Player") then
-        local aOrigin = attacker:GetOrigin()
-        local tOrigin = target:GetOrigin()
-        local weapon = "none"
-        if target:GetActiveWeapon() then
-            weapon = target:GetActiveWeapon():GetMapName() end        
-        local hitLog =
-        {
-            //general
-            action = "hit_player",	
-            
-            //Attacker
-            attacker_steamId = Plugin:GetId(attacker:GetClient()),
-            attacker_team = attacker:GetTeam():GetTeamNumber(),
-            attacker_weapon = doer:GetMapName(),
-            attacker_lifeform = attacker:GetMapName(),
-            attacker_hp = attacker:GetHealth(),
-            attacker_armor = attacker:GetArmorAmount(),
-            attackerx = string.format("%.4f", aOrigin.x),
-            attackery = string.format("%.4f", aOrigin.y),
-            attackerz = string.format("%.4f", aOrigin.z),
-            
-            //Target
-            target_steamId = Plugin:GetId(target:GetClient()),
-            target_team = target:GetTeam():GetTeamNumber(),
-            target_weapon = weapon,
-            target_lifeform = target:GetMapName(),
-            target_hp = target:GetHealth(),
-            target_armor = target:GetArmorAmount(),
-            targetx = string.format("%.4f", tOrigin.x),
-            targety = string.format("%.4f", tOrigin.y),
-            targetz = string.format("%.4f", tOrigin.z),
-            
-            damageType = damageType,
-            damage = damage
-            
-        }
+function Plugin:addHitToLog(target, attacker, doer, damage, damageType)
+    if attacker:isa("Player") then
+        if target:isa("Player") then
+            local attacker_id = Plugin:GetId(attacker:GetClient())
+            local target_id = Plugin:GetId(target:GetClient())
+            if not attacker_id or not target_id then return end
+            local aOrigin = attacker:GetOrigin()
+            local tOrigin = target:GetOrigin()
+            local weapon = "none"
+            if target:GetActiveWeapon() then
+                weapon = target:GetActiveWeapon():GetMapName() end        
+            local hitLog =
+            {
+                //general
+                action = "hit_player",	
+                
+                //Attacker
+                attacker_steamId = Plugin:GetId(attacker:GetClient()),
+                attacker_team = attacker:GetTeam():GetTeamNumber(),
+                attacker_weapon = doer:GetMapName(),
+                attacker_lifeform = attacker:GetMapName(),
+                attacker_hp = attacker:GetHealth(),
+                attacker_armor = attacker:GetArmorAmount(),
+                attackerx = string.format("%.4f", aOrigin.x),
+                attackery = string.format("%.4f", aOrigin.y),
+                attackerz = string.format("%.4f", aOrigin.z),
+                
+                //Target
+                target_steamId = Plugin:GetId(target:GetClient()),
+                target_team = target:GetTeam():GetTeamNumber(),
+                target_weapon = weapon,
+                target_lifeform = target:GetMapName(),
+                target_hp = target:GetHealth(),
+                target_armor = target:GetArmorAmount(),
+                targetx = string.format("%.4f", tOrigin.x),
+                targety = string.format("%.4f", tOrigin.y),
+                targetz = string.format("%.4f", tOrigin.z),
+                
+                damageType = damageType,
+                damage = damage
+                
+            }
 
-        Plugin:addLog(hitLog)
-        Plugin:weaponsAddHit(attacker, doer:GetMapName(), damage)
-        local attacker_id = Plugin:GetId(attacker:GetClient())
-        local target_id = Plugin:GetId(target:GetClient())        
-        if not target_id or not attacker_id then return end  
-        if attacker:GetTeam():GetTeamNumber() ==  target:GetTeam():GetTeamNumber() then return end //no assist on own teammates         
-        Plugin:playerAddDamageTaken(Plugin:GetId(attacker:GetClient()), Plugin:GetId(target:GetClient()))            
-        if Plugin.Assists[target_id] == nil then Plugin.Assists[target_id] = {} end       
-        Plugin.Assists[target_id][attacker_id] = Shared.GetTime()
-        
-    else //target is a structure
-        local structureOrigin = target:GetOrigin()
-        local aOrigin = attacker:GetOrigin()
-        local hitLog =
-        {
+            Plugin:addLog(hitLog)
+            Plugin:weaponsAddHit(attacker, doer:GetMapName(), damage)                
+            if attacker:GetTeam():GetTeamNumber() == target:GetTeam():GetTeamNumber() then return end //no assist on own teammates         
+            Plugin:playerAddDamageTaken(Plugin:GetId(attacker:GetClient()), Plugin:GetId(target:GetClient()))            
+            if Plugin.Assists[target_id] == nil then Plugin.Assists[target_id] = {} end       
+            Plugin.Assists[target_id][attacker_id] = Shared.GetTime()
             
-            //general
-            action = "hit_structure",	
-            
-            //Attacker
-            attacker_steamId =  Plugin:GetId(attacker:GetClient()),
-            attacker_team = attacker:GetTeam():GetTeamNumber(),
-            attacker_weapon = doer:GetMapName(),
-            attacker_lifeform = attacker:GetMapName(),
-            attacker_hp = attacker:GetHealth(),
-            attacker_armor = attacker:GetArmorAmount(),
-            attackerx = string.format("%.4f",  aOrigin.x),
-            attackery = string.format("%.4f",  aOrigin.y),
-            attackerz = string.format("%.4f",  aOrigin.z),
-                        
-            structure_id = target:GetId(),
-            structure_name = target:GetMapName(),	
-            structure_x = string.format("%.4f", structureOrigin.x),
-            structure_y = string.format("%.4f", structureOrigin.y),
-            structure_z = string.format("%.4f", structureOrigin.z),	
+        else //target is a structure
+            local structureOrigin = target:GetOrigin()
+            local aOrigin = attacker:GetOrigin()
+            local hitLog =
+            {
+                
+                //general
+                action = "hit_structure",	
+                
+                //Attacker
+                attacker_steamId =  Plugin:GetId(attacker:GetClient()),
+                attacker_team = attacker:GetTeam():GetTeamNumber(),
+                attacker_weapon = doer:GetMapName(),
+                attacker_lifeform = attacker:GetMapName(),
+                attacker_hp = attacker:GetHealth(),
+                attacker_armor = attacker:GetArmorAmount(),
+                attackerx = string.format("%.4f",  aOrigin.x),
+                attackery = string.format("%.4f",  aOrigin.y),
+                attackerz = string.format("%.4f",  aOrigin.z),
+                            
+                structure_id = target:GetId(),
+                structure_name = target:GetMapName(),	
+                structure_x = string.format("%.4f", structureOrigin.x),
+                structure_y = string.format("%.4f", structureOrigin.y),
+                structure_z = string.format("%.4f", structureOrigin.z),	
 
-            damageType = damageType,
-            damage = damage
-        }
-        
-        Plugin:addLog(hitLog)
-        Plugin:weaponsAddStructureHit(attacker, doer:GetMapName(), damage)
-        
-    end
-           
+                damageType = damageType,
+                damage = damage
+            }
+            
+            Plugin:addLog(hitLog)
+            Plugin:weaponsAddStructureHit(attacker, doer:GetMapName(), damage)
+            
+        end
+    end         
 end
 
 function Plugin:addDeathToLog(target, attacker, doer)
@@ -1659,7 +1668,7 @@ end
 function Plugin:GetIdbyName(Name)
     //for public realease 
     //Plugin.Config.Statsonline = false
-    if not Name then return end
+    if not Name then return -1 end
     if string.find(Name,"[BOT]",nil,true) == nil then return -1 end
     local newId=""
     local letters = " (){}[]/.,+-=?!*1234567890aAbBcCdDeEfFgGhHiIjJkKlLmMnNoOpPqQrRsStTuUvVwWxXyYzZ"
@@ -1675,16 +1684,20 @@ function Plugin:GetIdbyName(Name)
     while #newId < 12 do
         newId = newId .. "0"
     end       
-    newId = string.sub(newId, 1 , 12)  
+    newId = string.sub(newId, 1 , 12)
     //make a int
     newId = tonumber(newId)
     return newId
 end
 
 function Plugin:GetId(client)
-    if client==nil then return -1 end
-    if not client:GetIsVirtual() then return client:GetUserId() end
-    return Plugin:GetIdbyName(client:GetPlayer():GetName())    
+    local id = -1
+    if client then 
+        id = client:GetUserId()
+        if id == 0 then id = Plugin:GetIdbyName(client:GetPlayer():GetName()) end
+    end
+    
+    return id    
 end
 
 //Awards
