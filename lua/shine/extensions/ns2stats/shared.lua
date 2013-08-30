@@ -77,10 +77,8 @@ function Plugin:Mapdata(GUIMinimap)
  end
  
 //Votemenu
-VoteMenu:AddPage( "Stats", function( self )
-    self:AddSideButton( "Show my Stats", function()
-        Shared.ConsoleCommand("sh_showplayerstats")
-    end )
+    
+VoteMenu:AddPage( "Stats", function( self )    
     self:AddSideButton( "Show Server Stats", function()
         Shared.ConsoleCommand("sh_showserverstats")
     end )
