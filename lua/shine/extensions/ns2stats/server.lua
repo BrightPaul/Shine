@@ -137,7 +137,7 @@ function Plugin:OnDamageDealt(DamageMixin, damage, target, point, direction, sur
             damageType = DamageMixin:GetDamageType() end
             
     local doer = attacker:GetActiveWeapon() 
-    
+    if not doer then doer = attacker end    
     Plugin:addHitToLog(target, attacker, doer, damage, damageType)
 end
 
