@@ -736,9 +736,10 @@ function Plugin:UpdatePlayerInTable(client)
         if  taulu["steamId"] == steamId  then
             taulu.teamnumber = player:GetTeam():GetTeamNumber()
             taulu.lifeform = player:GetMapName()
-            taulu.score = player.score
-            taulu.assists = player.assistkills
-            taulu.deaths = player.deaths 
+            taulu.score = player.score or 0
+            taulu.assists = player.assistkills or 0
+            taulu.deaths = player.deaths or 0
+            taulu.kills = player.kills or 0
             if player:GetIsAlive() == false then
                 taulu.damageTaken = {}
                 taulu.killstreak = 0
