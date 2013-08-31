@@ -19,10 +19,10 @@ Plugin.DefaultConfig =
     Statsonline = true, -- Upload stats?
     SendMapData = false, --Send Mapdata, only set true if minimap is missing at website or is incorrect
     Statusreport = true, -- send Status to NS2Stats every min
-    WebsiteUrl = "http:--dev.ns2stats.com", --this is url which is shown in player private messages, so its for advertising
-    WebsiteDataUrl = "http:--dev.ns2stats.com/api/sendlog", --this is url where posted data is send and where it is parsed into database
-    WebsiteStatusUrl="http:--dev.ns2stats.com/api/sendstatus", --this is url where posted data is send on status sends
-    WebsiteApiUrl = "http:--dev.ns2stats.com/api",
+    WebsiteUrl = "http://dev.ns2stats.com", --this is url which is shown in player private messages, so its for advertising
+    WebsiteDataUrl = "http://dev.ns2stats.com/api/sendlog", --this is url where posted data is send and where it is parsed into database
+    WebsiteStatusUrl="http://dev.ns2stats.com/api/sendstatus", --this is url where posted data is send on status sends
+    WebsiteApiUrl = "http://dev.ns2stats.com/api",
     Assists = true, --show Assist in Scoreboard and addpoints?
     Awards = true, --show award
     ShowNumAwards = 4, --how many awards should be shown at the end of the game?
@@ -107,14 +107,14 @@ function Plugin:Initialise()
     -- every 1 min send Server Status    
      Shine.Timer.Create("SendStatus" , 60, -1, function() if not GameHasStarted then return end if Plugin.Config.Statusreport then Plugin:sendServerStatus(Currentgamestate) end end)
 
-    --every x min x(Sendtime at config)
+    --every x min (Sendtime at config)
     --send datas to NS2StatsServer
     Shine.Timer.Create( "SendStats", 60 * Plugin.Config.SendTime, -1, function()
         if not GameHasStarted then return end
         if Plugin.Config.Statsonline then Plugin:sendData() end
     end)
     
-    return true --finished loading
+    return true 
 end
 
 --All the Damage/Player Stuff
@@ -168,6 +168,7 @@ function Plugin:OnPlayerScoreChanged(Player,state)
     if not Plugin:getPlayerByClient(Player:GetClient()) then return end --Player not in Table
     if state then Plugin:UpdatePlayerInTable(Player:GetClient()) end
 end
+
 --Player jumps
 function Plugin:OnPlayerJump(Player)
  for key,taulu in pairs(Plugin.Players) do
@@ -179,14 +180,10 @@ function Plugin:OnPlayerJump(Player)
     
 end
 
---Player gets heal
---add Supports
-
 --Team
 
 --Resource gathered
 function Plugin:OnTeamGetResources(ResourceTower)
-    --only get ress towers atm    
     
     local newResourceGathered =
     {
@@ -406,7 +403,8 @@ function Plugin:SetGameState( Gamerules, NewState, OldState )
          allowreset = true
          GameHasStarted = true             
          Gamestarted = Shared.GetTime()
-         Plugin:addLog({action = "game_start"})  
+         Plugin:addLog({action = "game_start"})
+  
         --to reset PlayerList
         Plugin:clearPlayersTable()
         local allPlayers = Shared.GetEntitiesWithClassname("Player")
@@ -416,6 +414,7 @@ function Plugin:SetGameState( Gamerules, NewState, OldState )
             --call lifeform_changed
             Plugin:OnLifeformChanged(fromPlayer,nil,nil)
        end
+       
      --send Playerlist            
      Plugin:addPlayersToLog(0)    
     end
@@ -559,10 +558,10 @@ function Plugin:OnPickableItemPicked(item, player)
     local techId = item:GetTechId()
     local structureOrigin = item:GetOrigin()
 
-    local client = Server.GetOwner(player)
+    local client = player:GetClient()
     local steamId = 0
 
-    if client ~= nil then
+    if client then
     steamId = client:GetUserId()
     end
 
@@ -756,24 +755,16 @@ function Plugin:UpdatePlayerInTable(client)
             --weapon table<<
 
             
-            taulu["steamId"] = Plugin:GetId(client)
-            taulu["name"] = player:GetName()
-            if HasMixin(player, "Scoring") then taulu["score"] = player:GetScore() end
-            taulu["ping"] = client:GetPing()
-            taulu["teamnumber"] = player:GetTeamNumber()
-            taulu["isbot"] = client:GetIsVirtual()	
-            taulu["isCommander"] = player:GetIsCommander()
-            if taulu["isCommander"] == true then
-                if taulu["teamnumber"] == 1 then
+            taulu.steamId = Plugin:GetId(client)
+            taulu.name = player:GetName()
+            taulu.ping = client:GetPing()
+            taulu.teamnumber = player:GetTeamNumber()
+            taulu.isbot = client:GetIsVirtual()	
+            taulu.isCommander = player:GetIsCommander()
+            if taulu.isCommander then
+                if taulu.teamnumber == 1 then
                     taulu.lifeform = "marine_commander"
                 else taulu.lifeform = "alien_commander" end
-            end
-
-            for k,d in pairs(taulu.damageTaken) do	
-                d.time = d.time +1
-                /*todo if d.time > RBPSassistTime then
-                                    table.remove(taulu.damageTaken,k)	
-                end*/
             end
         end
     --<<
@@ -785,9 +776,9 @@ end
 --Check Killstreaks
 function Plugin:addKill(attacker_steamId,target_steamId)
     for key,taulu in pairs(Plugin.Players) do	
-        if taulu["steamId"] == attacker_steamId then	
-            taulu["killstreak"] = taulu["killstreak"] +1	
-            Plugin:checkForMultiKills(taulu["name"],taulu["killstreak"])
+        if taulu.steamId == attacker_steamId then	
+            taulu.killstreak = taulu.killstreak +1	
+            Plugin:checkForMultiKills(taulu.name,taulu.killstreak)
             if taulu.killstreak > taulu.highestKillstreak then
                 taulu.highestKillstreak = taulu.killstreak
             end 
@@ -803,7 +794,7 @@ end
 --add Damagetaken
 function Plugin:playerAddDamageTaken(attacker_steamId,target_steamId)
     for key,taulu in pairs(Plugin.Players) do	
-        if taulu["steamId"] == target_steamId then
+        if taulu.steamId == target_steamId then
         --if steamid already in table then update, else add
             for k,d in pairs(taulu.damageTaken) do	
                 if attacker_steamId == d.steamId then --reset timer	
@@ -1033,17 +1024,17 @@ function Plugin:OnLifeformChanged(Player, oldEntityId, newEntityId)
    -- search for playername in players table if its there player is real and lifeform change should be tracked
    if tostring(Player.name) ~= nil and tostring(Player.name) ~= "NSPlayer" then
      for key,taulu in pairs(Plugin.Players) do
-        if taulu["name"] == Player.name then
+        if taulu.name == Player.name then
             local Currentlifeform = Player:GetMapName()
             if not Player:GetIsAlive() then Currentlifeform = "dead" end
-            if taulu["isCommander"] == true then
-                if taulu["teamnumber"] == 1 then
+            if taulu.isCommander == true then
+                if taulu.teamnumber == 1 then
                     Currentlifeform = "marine_commander"
                 else Currentlifeform = "alien_commander" end
             end
-            if taulu["lifeform"] ~= Currentlifeform then                
-                taulu["lifeform"] = Currentlifeform
-                Plugin:addLog({action = "lifeform_change", name = taulu["name"], lifeform = taulu["lifeform"], steamId = taulu["steamId"]})
+            if taulu.lifeform ~= Currentlifeform then                
+                taulu.lifeform = Currentlifeform
+                Plugin:addLog({action = "lifeform_change", name = taulu.name, lifeform = taulu.lifeform, steamId = taulu.steamId})
                 break                  
             else
                 return
@@ -1236,23 +1227,6 @@ function Plugin:acceptKey(response)
         end
 end
 
-function Plugin:getServerInfoTable()
-    local max = 0
-    local highestTable = nil
-    for key,taulu in pairs(RBPSserverInfo) do
-        if max < taulu.count then
-            max = taulu.count
-            highestTable = taulu
-        end
-    end
-    
-    if max == 0 then
-        return {IP = "n/a", password = "n/a"}
-    end
-    
-    return highestTable
-end
-
 function Plugin:addMissToLog(attacker)
     if not Server then return end
     
@@ -1430,7 +1404,7 @@ function Plugin:addDeathToLog(target, attacker, doer)
                 Plugin:addLog(deathLog)
             
                 if attacker:GetTeamNumber() ~= target:GetTeamNumber() then                   
-                    --addkill + assists
+                    --addkill
                     Plugin:addKill(Plugin:GetId(attacker_client), Plugin:GetId(target_client))                  
                 end
             
@@ -1536,10 +1510,12 @@ function Plugin:AddServerInfos(params)
     params.tags = self.Config.Tags
     params.private = self.Config.Competitive
     params.autoarrange = false --use Shine plugin settings later?
+    local ip = IPAddressToString(Server.GetIpAddress()) 
+    if not string.find(ip,":") then ip = ip .. ":27015" end
     params.serverInfo =
     {
         password = "",
-        IP = IPAddressToString(Server.GetIpAddress()),
+        IP = ip,
         count = 30 --servertick?
     }
     Plugin:addLog(params)
