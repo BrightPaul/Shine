@@ -53,7 +53,7 @@ Shine.Hook.SetupClassHook("Player","SetName","PlayerNameChange","PassivePost")
 Shine.Hook.SetupClassHook("Player","OnEntityChange","OnLifeformChanged","PassivePost")
 Shine.Hook.SetupClassHook("Player","OnJump","OnPlayerJump","PassivePost")
 Shine.Hook.SetupClassHook("Player","SetScoreboardChanged","OnPlayerScoreChanged","PassivePost")
-Shine.Hook.SetupClassHook("Location","Reset","OnGameReset","PassivePre") 
+Shine.Hook.SetupClassHook("ObstacleMixing","RemoveAllObstacles","OnGameReset","PassivePost")  
    
 --Score datatable 
 Plugin.Players = {}
@@ -89,7 +89,7 @@ function Plugin:Initialise()
             Plugin:addPlayerToTable(client)
             Plugin:UpdatePlayerInTable(client)
         end
-    else Plugin:addLog({action="game_reset"}) end
+    end
     
     --Timers
     
@@ -385,15 +385,9 @@ end
     
 -- Game events 
 
---fix for multiplied logging
-allowreset = true
-
 --Game reset
-function Plugin:OnGameReset()
-    if allowreset then    
+function Plugin:OnGameReset()  
     Plugin:addLog({action="game_reset"})
-    allowreset = false
-    end    
 end
 
 --Gamestart
@@ -456,8 +450,7 @@ function Plugin:EndGame( Gamerules, WinningTeam )
         --Resets all Stats
         RBPSgameFinished = 0        
         RBPSsuccessfulSends = 0
-        Plugin.RBPSlogPartNumber = 1
-        Plugin:addLog({action="game_reset"})       
+        Plugin.RBPSlogPartNumber = 1    
     
 end
 
@@ -739,6 +732,13 @@ function Plugin:UpdatePlayerInTable(client)
             taulu.assists = player.assistkills or 0
             taulu.deaths = player.deaths or 0
             taulu.kills = player.kills or 0
+            taulu.totalKills = player.totalKills or 0
+            taulu.totalAssists = player.totalAssists or 0
+            taulu.totalDeaths = player.totalDeaths or 0
+            taulu.playerSkill = player.playerSkill or 0
+            taulu.totalScore = player.totalScore or 0
+            taulu.totalPlayTime = player.totalPlayTime or 0
+            taulu.playerLevel = player.playerLevel or 0
             if player:GetIsAlive() == false then
                 taulu.damageTaken = {}
                 taulu.killstreak = 0
@@ -876,6 +876,13 @@ function Plugin:createPlayerTable(client)
         kills = 0,
         deaths = 0,
         assists =0,
+        totalKills = 0,
+        totalAssists = 0,
+        totalDeaths = 0,
+        playerSkill = 0,
+        totalScore = 0,
+        totalPlayTime = 0,
+        playerLevel = 0,
         killstreak =0,
         highestKillstreak =0,
         jumps = 0,
@@ -1566,11 +1573,11 @@ function Plugin:CreateCommands()
 end
 
 --Get NS2 IDs
-
+local a = true
 --For Bots
 function Plugin:GetIdbyName(Name)
-    --for public realease 
-    --Plugin.Config.Statsonline = false
+    if a then Notify( "NS2Stats won't store game with bots. Disabling online stats now!") a=false end
+    Plugin.Config.Statsonline = false
     if not Name then return -1 end
     if string.find(Name,"[BOT]",nil,true) == nil then return -1 end
     local newId=""
