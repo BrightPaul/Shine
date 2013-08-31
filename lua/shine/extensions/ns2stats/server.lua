@@ -23,7 +23,6 @@ Plugin.DefaultConfig =
     WebsiteDataUrl = "http://dev.ns2stats.com/api/sendlog", --this is url where posted data is send and where it is parsed into database
     WebsiteStatusUrl="http://dev.ns2stats.com/api/sendstatus", --this is url where posted data is send on status sends
     WebsiteApiUrl = "http://dev.ns2stats.com/api",
-    Assists = true, --show Assist in Scoreboard and addpoints?
     Awards = true, --show award
     ShowNumAwards = 4, --how many awards should be shown at the end of the game?
     AwardMsgTime = 20, -- secs to show awards
@@ -53,18 +52,19 @@ Shine.Hook.SetupClassHook("Player","SetName","PlayerNameChange","PassivePost")
 Shine.Hook.SetupClassHook("Player","OnEntityChange","OnLifeformChanged","PassivePost")
 Shine.Hook.SetupClassHook("Player","OnJump","OnPlayerJump","PassivePost")
 Shine.Hook.SetupClassHook("Player","SetScoreboardChanged","OnPlayerScoreChanged","PassivePost")
-Shine.Hook.SetupClassHook("ObstacleMixing","RemoveAllObstacles","OnGameReset","PassivePost")  
+--Global hooks
+Shine.Hook.SetupGlobalHook("RemoveAllObstacles","OnGameReset","PassivePost")  
    
 --Score datatable 
 Plugin.Players = {}
 
 --values needed by NS2Stats
-logInit = false
-Plugin.RBPSlogPartNumber = 1
+
+Plugin.Log = ""
+Plugin.LogPartNumber = 1
 RBPSsuccessfulSends = 0
-RBPSresendCount = 0
 Gamestarted = 0
-RBPSgameFinished = 0
+Plugin.gameFinished = 0
 RBPSnextAwardId= 0
 RBPSawards = {}
 GameHasStarted = false
@@ -73,13 +73,12 @@ Currentgamestate = 0
 function Plugin:Initialise()
     self.Enabled = true
     
+    Plugin:CreateCommands()
+    
     if self.Config.ServerKey == "" then
         Shared.SendHTTPRequest(Plugin.Config.WebsiteUrl .. "/api/generateKey/?s=7g94389u3r89wujj3r892jhr9fwj", "GET",
             function(response) Plugin:acceptKey(response) end)
     end
-        
-    --register Commands
-     Plugin:CreateCommands()
      
     --toget all Player into scorelist    
     if GameHasStarted then
@@ -394,13 +393,21 @@ end
 function Plugin:SetGameState( Gamerules, NewState, OldState )
     Currentgamestate = NewState    
     if NewState == kGameState.Started then
-         allowreset = true
-         GameHasStarted = true             
-         Gamestarted = Shared.GetTime()
-         Plugin:addLog({action = "game_start"})
-  
-        --to reset PlayerList
-        Plugin:clearPlayersTable()
+    
+        --Resets all Stats
+        Plugin.LogPartNumber = 1
+        RBPSsuccessfulSends = 0
+        Gamestarted = 0
+        Plugin.gameFinished = 0
+        RBPSnextAwardId= 0
+        RBPSawards = {}
+        GameHasStarted = false
+        Currentgamestate = 0
+        Plugin.Players = {}
+        
+        GameHasStarted = true             
+        Gamestarted = Shared.GetTime()
+        Plugin:addLog({action = "game_start"})
         local allPlayers = Shared.GetEntitiesWithClassname("Player")
         for index, fromPlayer in ientitylist(allPlayers) do
             local client = fromPlayer:GetClient()
@@ -423,7 +430,7 @@ function Plugin:EndGame( Gamerules, WinningTeam )
             Plugin:UpdatePlayerInTable(client)
         end	
         
-        RBPSgameFinished = 1
+        Plugin.gameFinished = 1
         if Plugin.Config.Awards then Plugin:sendAwardListToClients() end
         Plugin:addPlayersToLog(1)
       
@@ -446,12 +453,6 @@ function Plugin:EndGame( Gamerules, WinningTeam )
                 }       
         Plugin:AddServerInfos(params)
         if Plugin.Config.Statsonline then Plugin:sendData()  end --senddata also clears log
-        GameHasStarted = false
-        --Resets all Stats
-        RBPSgameFinished = 0        
-        RBPSsuccessfulSends = 0
-        Plugin.RBPSlogPartNumber = 1    
-    
 end
 
 --PlayerConnected
@@ -599,58 +600,28 @@ end
 
 --all the send Stuff
 
---create new Log
-function Plugin:initLog ()
-    logInit = true
-    RBPSlog = ""
-end
-
 --add to log
-function Plugin:addLog(tbl) 
-    if logInit == false then self:initLog() end    
-    if tbl == nil then
-        return
-    end
+function Plugin:addLog(tbl)    
+    if not Plugin.Log then Plugin.Log = "" end
+    if not tbl then return end 
     tbl.time = Shared.GetGMTString(false)
     tbl.gametime = Shared.GetTime() - Gamestarted
-    RBPSlog = RBPSlog .. json.encode(tbl) .."\n"	
-    --local data = RBPSlibc:CompressHuffman(RBPSlog)
+    Plugin.Log = Plugin.Log .. json.encode(tbl) .."\n"	
+    --local data = RBPSlibc:CompressHuffman(Plugin.Log)
     --Notify("compress size: " .. string.len(data) .. "decompress size: " .. string.len(RBPSlibc:Decompress(data)))        
 end
 
 --send Log to NS2Stats Server
-function Plugin:sendData()
+function Plugin:sendData()    
     local params =
     {
         key = self.Config.ServerKey,
-        roundlog = RBPSlog,
-        part_number = Plugin.RBPSlogPartNumber,
-        last_part = RBPSgameFinished,
+        roundlog = Plugin.Log,
+        part_number = Plugin.LogPartNumber,
+        last_part = Plugin.gameFinished,
         map = Shared.GetMapName(),
-    }
-    
-    RBPSlastGameFinished = RBPSgameFinished
-    if RBPSlastLog == nil then
-    RBPSlastLogPartNumber = Plugin.RBPSlogPartNumber	
-    RBPSlastLog = RBPSlog
-    Plugin:initLog() --clears log	
-    else --if we still have data in last log, we wont send data normally, since it would be duplicated data
-        
-            local totalLength = string.len(RBPSlastLog) + string.len(RBPSlog)
-            
-            if totalLength>500000 then --we dont want to have more than 500 000 characters since that seems to crash the server
-                RBPSlastLog = nil --basicly log fails here, but continue anyway
-                Notify ("Log too long")
-            else
-                RBPSlastLog = RBPSlastLog .. RBPSlog --save log in memory if we need to resend, keep last log also in memory if send failed	
-            end	
-                            
-            Plugin:initLog() --clears log
-            return
-    end	
-
-    Shared.SendHTTPRequest(self.Config.WebsiteDataUrl, "POST", params, function(response,status) Plugin:onHTTPResponseFromSend(client,"send",response,status) end)	
-    RBPSsendStartTime = Shared.GetSystemTime()
+    }    
+    Shared.SendHTTPRequest(self.Config.WebsiteDataUrl, "POST", params, function(response,status) Plugin:onHTTPResponseFromSend(client,"send",response,status) end)
 end
 
 --Analyze the answer of server
@@ -659,9 +630,11 @@ function Plugin:onHTTPResponseFromSend(client,action,response,status)
         if message then
         
             if string.len(response)>0 then --if we got somedata, that means send was completed
-                RBPSlastLog = nil
                 RBPSsuccessfulSends = RBPSsuccessfulSends +1
-                 if string.find(response,"Server log empty",nil, true) == nill then Plugin.RBPSlogPartNumber = Plugin.RBPSlogPartNumber + 1 end
+                 if not string.find(response,"Server log empty",nil, true) then
+                     Plugin.LogPartNumber = Plugin.LogPartNumber + 1 
+                     Plugin.Log = ""
+                end
             end
         
             if message.other then
@@ -680,9 +653,11 @@ function Plugin:onHTTPResponseFromSend(client,action,response,status)
             end	
         elseif response then --if message = nil, json parse failed prob or timeout
             if string.len(response)>0 then --if we got somedata, that means send was completed
-                RBPSlastLog = nil
                 RBPSsuccessfulSends = RBPSsuccessfulSends +1
-                if string.find(response,"Server log empty",nil, true) == nill then Plugin.RBPSlogPartNumber = Plugin.RBPSlogPartNumber + 1 end
+                if not string.find(response,"Server log empty",nil, true) then
+                     Plugin.LogPartNumber = Plugin.LogPartNumber + 1 
+                     Plugin.Log = ""
+                end
             end
             Notify("NS2Stats.org: (" .. response .. ")")
     end
@@ -1201,16 +1176,6 @@ function Plugin:addPlayersToLog(type)
     tmp.list = Plugin.Players
     
     Plugin:addLog(tmp)
-end
-
-function Plugin:clearPlayersTable()
-    Plugin.Players = { }
-end
-
-function Plugin:PrintTable(tbl)
-    for k,v in pairs(tbl) do
-        print(k,v)
-    end
 end
 
 function Plugin:acceptKey(response)
