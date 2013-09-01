@@ -7,7 +7,6 @@ local Notify = Shared.Message
 
 local Plugin = Plugin
 local tostring = tostring
-local Decode = json.decode 
 
 Plugin.Version = "0.42"
 
@@ -26,12 +25,13 @@ Plugin.DefaultConfig =
     Awards = true, --show award
     ShowNumAwards = 4, --how many awards should be shown at the end of the game?
     AwardMsgTime = 20, -- secs to show awards
-    LogChat = true, --log the chat?
+    LogChat = false, --log the chat?
     ServerKey = "",
     IngameBrowser = true, -- use ingame browser or Steamoverlay 
     Tags = {}, --Tags added to log 
     Competitive = false, -- tag round as Competitive
     SendTime = 5, --Send after how many min?
+    Lastroundlink = "", --Link of last round
 }
 
 Plugin.CheckConfig = true
@@ -52,6 +52,8 @@ Shine.Hook.SetupClassHook("Player","SetName","PlayerNameChange","PassivePost")
 Shine.Hook.SetupClassHook("Player","OnEntityChange","OnLifeformChanged","PassivePost")
 Shine.Hook.SetupClassHook("Player","OnJump","OnPlayerJump","PassivePost")
 Shine.Hook.SetupClassHook("Player","SetScoreboardChanged","OnPlayerScoreChanged","PassivePost")
+Shine.Hook.SetupClassHook("GhostStructureMixin","SetScoreboardChanged","OnGhostCreated","PassivePost")
+Shine.Hook.SetupClassHook("GhostStructureMixin","PerformAction","OnGhostDestroyed","PassivePost")
 --Global hooks
 Shine.Hook.SetupGlobalHook("RemoveAllObstacles","OnGameReset","PassivePost")  
    
@@ -60,7 +62,7 @@ Plugin.Players = {}
 
 --values needed by NS2Stats
 
-Plugin.Log = ""
+Plugin.Log = {}
 Plugin.LogPartNumber = 1
 RBPSsuccessfulSends = 0
 Gamestarted = 0
@@ -158,7 +160,61 @@ end
 --Entity Killed
 function Plugin:OnEntityKilled(Gamerules, TargetEntity, Attacker, Inflictor, Point, Direction)    
     if TargetEntity:isa("DropPack") then Plugin:OnPickableItemDestroyed(TargetEntity) 
-    elseif TargetEntity:isa("Player") then Plugin:addDeathToLog(TargetEntity, Attacker, Inflictor) end       
+    elseif TargetEntity:isa("Player") then Plugin:addDeathToLog(TargetEntity, Attacker, Inflictor)
+    elseif TargetEntity:isa("Structure") then
+        
+        local structure = TargetEntity
+        local structureOrigin = structure:GetOrigin()
+        local techId = structure:GetTechId()
+        
+        --Structure killed
+        if Attacker then 
+            local player = Attacker
+            local doer = Inflictor
+            
+            	local client = Server.GetOwner(player)
+                local steamId = 0
+                local weapon = ""
+
+                if client then steamId = Plugin:GetId(client) end
+
+                if not doer then weapon = "self"
+                else weapon = doer:GetMapName()
+                end
+
+                local newStructure =
+                {
+                id = structure:GetId(),
+                killer_steamId = steamId,
+                killer_lifeform = player:GetMapName(),
+                killer_team = player:GetTeamNumber(),
+                structure_team = structure:GetTeamNumber(),
+                killerweapon = weapon,
+                structure_cost = GetCostForTech(techId),
+                structure_name = EnumToString(kTechId, techId),
+                action = "structure_killed",
+                structure_x = string.format("%.4f", structureOrigin.x),
+                structure_y = string.format("%.4f", structureOrigin.y),
+                structure_z = string.format("%.4f", structureOrigin.z)
+                }
+                Plugin:addLog(newStructure)
+                
+        --Structure suicide
+        else
+            local newStructure =
+            {
+                id = structure:GetId(),
+                structure_team = structure:GetTeamNumber(),
+                structure_cost = GetCostForTech(techId),
+                structure_name = EnumToString(kTechId, techId),
+                action = "structure_suicide",
+                structure_x = string.format("%.4f", structureOrigin.x),
+                structure_y = string.format("%.4f", structureOrigin.y),
+                structure_z = string.format("%.4f", structureOrigin.z)
+            }
+            Plugin:addLog(newStructure)
+        end    
+    end   
 end
 
 --score changed
@@ -298,6 +354,45 @@ function Plugin:OnBuildingRecycled( Building, ResearchID )
     }
 
     Plugin:addLog(newUpgrade)
+end
+
+--Ghost Buildings (Blueprints)
+
+function Plugin:OnGhostCreated(GhostStructureMixin)
+     Plugin:ghostStructureAction("ghost_create",GhostStructureMixin,nil)
+end
+
+function Plugin:OnGhostDestroyed(GhostStructureMixin,techNode, position)
+    if techNode.techId == kTechId.Cancel and GhostStructureMixin:GetIsGhostStructure() then
+        Plugin:ghostStructureAction("ghost_destroy",GhostStructureMixin,nil)
+    end
+end
+
+--addfunction
+
+function Plugin:ghostStructureAction(action,structure,doer)
+        
+    if not structure then return end
+    local techId = structure:GetTechId()
+    local structureOrigin = structure:GetOrigin()
+    
+    local log = nil
+    
+    log =
+    {
+        action = action,
+        structure_name = EnumToString(kTechId, techId),
+        team = structure:GetTeamNumber(),
+        id = structure:GetId(),
+        structure_x = string.format("%.4f", structureOrigin.x),
+        structure_y = string.format("%.4f", structureOrigin.y),
+        structure_z = string.format("%.4f", structureOrigin.z)
+    }
+    
+    if action == "ghost_remove" then
+        --something extra here? we can use doer here
+    end
+    Plugin:addLog(log)    
 end
 
 --Upgrade Stuff
@@ -602,11 +697,28 @@ end
 
 --add to log
 function Plugin:addLog(tbl)    
-    if not Plugin.Log then Plugin.Log = "" end
+    if not Plugin.Log then Plugin.Log = {} end
+    if not Plugin.Log[Plugin.LogPartNumber] then Plugin.Log[Plugin.LogPartNumber] = "" end
     if not tbl then return end 
     tbl.time = Shared.GetGMTString(false)
     tbl.gametime = Shared.GetTime() - Gamestarted
-    Plugin.Log = Plugin.Log .. json.encode(tbl) .."\n"	
+    
+    --avoid that log gets too long also do resend by this way
+    if string.len(Plugin.Log[Plugin.LogPartNumber]) > 160000 then
+    
+        if Plugin.Config.Statsonline then 
+            -- don't reach critical length of 500 000
+            if string.len(Plugin.Log[Plugin.LogPartNumber]) > 490000 then
+                Notify("[NS2Stats]: The Log has reached a critical size we will stop logging now. This is probably because the NS2Stats Servers are offline at the moment")
+                
+                --disable online stats
+                Plugin.Config.Statsonline= false
+                Plugin.LogPartNumber = Plugin.LogPartNumber + 1 
+             
+           else Plugin:sendData() end
+        else Plugin.LogPartNumber = Plugin.LogPartNumber + 1 end
+    end
+    Plugin.Log[Plugin.LogPartNumber] = Plugin.Log[Plugin.LogPartNumber] .. json.encode(tbl) .."\n"	
     --local data = RBPSlibc:CompressHuffman(Plugin.Log)
     --Notify("compress size: " .. string.len(data) .. "decompress size: " .. string.len(RBPSlibc:Decompress(data)))        
 end
@@ -616,24 +728,26 @@ function Plugin:sendData()
     local params =
     {
         key = self.Config.ServerKey,
-        roundlog = Plugin.Log,
+        roundlog = Plugin.Log[Plugin.LogPartNumber],
         part_number = Plugin.LogPartNumber,
         last_part = Plugin.gameFinished,
         map = Shared.GetMapName(),
     }    
-    Shared.SendHTTPRequest(self.Config.WebsiteDataUrl, "POST", params, function(response,status) Plugin:onHTTPResponseFromSend(client,"send",response,status) end)
+    Shared.SendHTTPRequest(self.Config.WebsiteDataUrl, "POST", params, function(response,status,params) Plugin:onHTTPResponseFromSend(client,"send",response,status,params,nil) end)
 end
 
+local resendtimes = 0
+
 --Analyze the answer of server
-function Plugin:onHTTPResponseFromSend(client,action,response,status)	
+function Plugin:onHTTPResponseFromSend(client,action,response,status,params,resend)	
         local message = json.decode(response)        
         if message then
         
             if string.len(response)>0 then --if we got somedata, that means send was completed
                 RBPSsuccessfulSends = RBPSsuccessfulSends +1
                  if not string.find(response,"Server log empty",nil, true) then
-                     Plugin.LogPartNumber = Plugin.LogPartNumber + 1 
-                     Plugin.Log = ""
+                     if not resend then Plugin.Log[Plugin.LogPartNumber] = nil end
+                     Plugin.LogPartNumber = Plugin.LogPartNumber + 1  
                 end
             end
         
@@ -649,17 +763,29 @@ function Plugin:onHTTPResponseFromSend(client,action,response,status)
 
             if message.link then	
                 local playerList = EntityListToTable(Shared.GetEntitiesWithClassname("Player"))
-                --todo safe link and enable Votemenu for it
+                Shine:Notify( nil, "", "", "Round has been safed to NS2Stats : " .. message.link)
+                Plugin.Config.Lastroundlink = message.link
+                self:SaveConfig()                
             end	
         elseif response then --if message = nil, json parse failed prob or timeout
             if string.len(response)>0 then --if we got somedata, that means send was completed
                 RBPSsuccessfulSends = RBPSsuccessfulSends +1
                 if not string.find(response,"Server log empty",nil, true) then
-                     Plugin.LogPartNumber = Plugin.LogPartNumber + 1 
-                     Plugin.Log = ""
+                     if not resend then Plugin.Log[Plugin.LogPartNumber] = nil end
+                     Plugin.LogPartNumber = Plugin.LogPartNumber + 1                      
                 end
             end
             Notify("NS2Stats.org: (" .. response .. ")")
+       else --we couldn't reach the NS2Stats Servers
+            if params then
+            
+                -- try to resend log in the next 5 min once per min
+                if params.last_part == 0 then return end
+                if resendtimes == 0 then Plugin.Log[Plugin.LogPartNumber] = nil end  
+                if resendtimes >= 5 then resendtimes = 0 return end
+                resendtimes = resendtimes + 1              
+                Shine.Timer.Simple(60, function() Shared.SendHTTPRequest(self.Config.WebsiteDataUrl, "POST", params, function(response,status,params) Plugin:onHTTPResponseFromSend(client,"send",response,status,params,true) end) end)               
+            end
     end
 
 end
@@ -1498,30 +1624,37 @@ end
 function Plugin:CreateCommands()
     
     local ShowPStats = self:BindCommand( "sh_showplayerstats", {"showplayerstats","showstats" }, function(Client)
-        Shared.SendHTTPRequest( self.Config.WebsiteApiUrl .. "/player?ns2_id=" .. tostring(Plugin:GetId(Client)), "GET",function( Response, Status)   
-            local Data = Decode(Response)
-            if Data == nil then return end
-            local playerid = Data.player_page_id or ""
+        Shared.SendHTTPRequest( self.Config.WebsiteApiUrl .. "/player?ns2_id=" .. tostring(Plugin:GetId(Client)), "GET",function(response)   
+            local Data = json.decode(response)
+            local playerid = ""
+            if Data then playerid = Data[1].player_page_id or "" end
             local url = self.Config.WebsiteUrl .. "/player/player/" .. playerid
             if self.Config.IngameBrowser then Server.SendNetworkMessage( Client, "Shine_Web", { URL = url }, true )
             else Client.ShowWebpage(url)
             end
         end)      
     end,true)
-    -- ShowPStats:AddParam{ Type = "string",Optimal = true ,TakeRestOfLine = true,Default ="", MaxLength = kMaxChatLength}
-    ShowPStats:Help("Shows stats of given <player> or if no given <player> from yourself")
+    ShowPStats:Help("Shows stats from yourself")
+    
+    local ShowLastRound = self:BindCommand( "sh_showlastround", {"showlastround","lastround" }, function(Client)
+        if Plugin.Config.Lastroundlink == "" then Shine:Notify(Client, "", "", "[NS2Stats]: Last round was not safed at NS2Stats") return end  
+        if self.Config.IngameBrowser then Server.SendNetworkMessage( Client, "Shine_Web", { URL = Plugin.Config.Lastroundlink }, true )
+        else Client.ShowWebpage(url)
+        end     
+    end,true)   
+    ShowLastRound:Help("Shows stats of last round played on this server")
     
     local ShowSStats = self:BindCommand( "sh_showserverstats", "showserverstats", function(Client)
-        Shared.SendHTTPRequest( self.Config.WebsiteApiUrl .. "/server?key=" .. self.Config.ServerKey,"GET",function( Response, Status)
-            local Data = Decode( Response )
-            if Data == nil then return end
-            local serverid = Data.id or ""             
+        Shared.SendHTTPRequest( self.Config.WebsiteApiUrl .. "/server?key=" .. self.Config.ServerKey,"GET",function(response)
+            local Data = json.decode( response )
+            local serverid=""
+            if Data then serverid = Data.id or "" end             
             local url= self.Config.WebsiteUrl .. "/server/server/" .. serverid
     	    if self.Config.IngameBrowser then Server.SendNetworkMessage( Client, "Shine_Web", { URL = url }, true )
     	    else Client.ShowWebpage(url) end
         end)        
     end,true)
-    ShowSStats:Help("Shows server stats")
+    ShowSStats:Help("Shows server stats") 
     
     local Verify = self:BindCommand( "sh_verify", {"verifystats","verify"},function(Client)
             Shared.SendHTTPRequest(self.Config.WebsiteUrl .. "/api/verifyServer/" .. Plugin:GetId(Client) .. "?s=479qeuehq2829&key=" .. self.Config.ServerKey, "GET",
