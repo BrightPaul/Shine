@@ -695,6 +695,9 @@ end
 
 --all the send Stuff
 
+-- avoid that sendata is runned to often
+local working = false
+
 --add to log
 function Plugin:addLog(tbl)    
     if not Plugin.Log then Plugin.Log = {} end
@@ -702,6 +705,7 @@ function Plugin:addLog(tbl)
     if not tbl then return end 
     tbl.time = Shared.GetGMTString(false)
     tbl.gametime = Shared.GetTime() - Gamestarted
+    Plugin.Log[Plugin.LogPartNumber] = Plugin.Log[Plugin.LogPartNumber] .. json.encode(tbl) .."\n"	
     
     --avoid that log gets too long also do resend by this way
     if string.len(Plugin.Log[Plugin.LogPartNumber]) > 160000 then
@@ -718,13 +722,19 @@ function Plugin:addLog(tbl)
            else Plugin:sendData() end
         else Plugin.LogPartNumber = Plugin.LogPartNumber + 1 end
     end
-    Plugin.Log[Plugin.LogPartNumber] = Plugin.Log[Plugin.LogPartNumber] .. json.encode(tbl) .."\n"	
     --local data = RBPSlibc:CompressHuffman(Plugin.Log)
     --Notify("compress size: " .. string.len(data) .. "decompress size: " .. string.len(RBPSlibc:Decompress(data)))        
 end
 
 --send Log to NS2Stats Server
-function Plugin:sendData()    
+function Plugin:sendData()
+
+    -- one senddata already running?
+    if working then return end
+    
+    --sendata is working now
+    working = true
+    
     local params =
     {
         key = self.Config.ServerKey,
@@ -761,10 +771,11 @@ function Plugin:onHTTPResponseFromSend(client,action,response,status,params,rese
                 return
             end	
 
-            if message.link then	
+            if message.link then
+                local link = Plugin.Config.WebsiteUrl .. message.link	
                 local playerList = EntityListToTable(Shared.GetEntitiesWithClassname("Player"))
-                Shine:Notify( nil, "", "", "Round has been safed to NS2Stats : " .. message.link)
-                Plugin.Config.Lastroundlink = message.link
+                Shine:Notify( nil, "", "", "Round has been safed to NS2Stats : " .. link)
+                Plugin.Config.Lastroundlink = link
                 self:SaveConfig()                
             end	
         elseif response then --if message = nil, json parse failed prob or timeout
@@ -776,7 +787,7 @@ function Plugin:onHTTPResponseFromSend(client,action,response,status,params,rese
                 end
             end
             Notify("NS2Stats.org: (" .. response .. ")")
-       else --we couldn't reach the NS2Stats Servers
+       elseif not response then --we couldn't reach the NS2Stats Servers
             if params then
             
                 -- try to resend log in the next 5 min once per min
@@ -787,7 +798,10 @@ function Plugin:onHTTPResponseFromSend(client,action,response,status,params,rese
                 Shine.Timer.Simple(60, function() Shared.SendHTTPRequest(self.Config.WebsiteDataUrl, "POST", params, function(response,status,params) Plugin:onHTTPResponseFromSend(client,"send",response,status,params,true) end) end)               
             end
     end
-
+    
+    -- senddata was finished
+    working = false
+    
 end
 
 --send Status report to NS2Stats
