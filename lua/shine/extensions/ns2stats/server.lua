@@ -487,19 +487,7 @@ end
 --Gamestart
 function Plugin:SetGameState( Gamerules, NewState, OldState )
     Currentgamestate = NewState    
-    if NewState == kGameState.Started then
-    
-        --Resets all Stats
-        Plugin.LogPartNumber = 1
-        RBPSsuccessfulSends = 0
-        Gamestarted = 0
-        Plugin.gameFinished = 0
-        RBPSnextAwardId= 0
-        RBPSawards = {}
-        GameHasStarted = false
-        Currentgamestate = 0
-        Plugin.Players = {}
-        
+    if NewState == kGameState.Started then        
         GameHasStarted = true             
         Gamestarted = Shared.GetTime()
         Plugin:addLog({action = "game_start"})
@@ -548,6 +536,16 @@ function Plugin:EndGame( Gamerules, WinningTeam )
                 }       
         Plugin:AddServerInfos(params)
         if Plugin.Config.Statsonline then Plugin:sendData()  end --senddata also clears log
+         --Resets all Stats
+        Plugin.LogPartNumber = 1
+        RBPSsuccessfulSends = 0
+        Gamestarted = 0
+        Plugin.gameFinished = 0
+        RBPSnextAwardId= 0
+        RBPSawards = {}
+        GameHasStarted = false
+        Currentgamestate = 0
+        Plugin.Players = {}
 end
 
 --PlayerConnected
@@ -583,8 +581,7 @@ end
 function Plugin:PostJoinTeam( Gamerules, Player, NewTeam, Force )
     if not Player then return end
     local Client = Player:GetClient()
-    Plugin:addPlayerJoinedTeamToLog(Player)
-     
+    Plugin:addPlayerJoinedTeamToLog(Player)     
     Plugin:UpdatePlayerInTable(Client)
 end
 
@@ -854,22 +851,13 @@ function Plugin:UpdatePlayerInTable(client)
             taulu.totalScore = player.totalScore or 0
             taulu.totalPlayTime = player.totalPlayTime or 0
             taulu.playerLevel = player.playerLevel or 0
+            
             if player:GetIsAlive() == false then
                 taulu.damageTaken = {}
                 taulu.killstreak = 0
                 taulu.lifeform = "dead"
             end
-
-            --weapon table>>
-                if player.GetActiveWeapon and player:GetActiveWeapon() then
-                    weapon = player:GetActiveWeapon():GetMapName()
-                end
-                
-                taulu["weapon"] = weapon
-                Plugin:updateWeaponData(taulu)
-            --weapon table<<
-
-            
+           
             taulu.steamId = Plugin:GetId(client)
             taulu.name = player:GetName()
             taulu.ping = client:GetPing()
@@ -1469,7 +1457,7 @@ function Plugin:addHitToLog(target, attacker, doer, damage, damageType)
 end
 
 function Plugin:addDeathToLog(target, attacker, doer)
-    if attacker ~= nil and doer ~= nil and target ~= nil then
+    if attacker  and doer and target then
         local attackerOrigin = attacker:GetOrigin()
         local targetWeapon = "none"
         local targetOrigin = target:GetOrigin()
@@ -1481,7 +1469,7 @@ function Plugin:addDeathToLog(target, attacker, doer)
         end
 
         --Jos on quitannu servulta justiin ennen tjsp niin ei ole clienttiä ja erroria pukkaa. (uwelta kopsasin)
-        if attacker_client ~= nil and target_client ~= nil then
+        if attacker_client and target_client then
             local deathLog =
             {
                 
