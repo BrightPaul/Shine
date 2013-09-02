@@ -552,7 +552,8 @@ function Plugin:ClientConnect( Client )
     Config.WebsiteApiUrl = self.Config.WebsiteApiUrl
     Config.SendMapData = self.Config.SendMapData    
     Server.SendNetworkMessage(Client,"Shine_StatsConfig",Config,true)    
-    Plugin:addPlayerToTable(Client)
+    Plugin:UpdatePlayerInTable(Client)
+    Plugin:setConnected(Client)
 end
 
 --PlayerDisconnect
@@ -832,11 +833,14 @@ function Plugin:UpdatePlayerInTable(client)
    
     if not steamId then return end
     
+    if not Plugin:getPlayerByClient(client) then Plugin:addPlayerToTable(client) end
+    
     for key,taulu in pairs(Plugin.Players) do
-        --Jos taulun(pelaajan) steamid on sama kuin etsitt‰v‰ niin p‰ivitet‰‰n tiedot.
-        if  taulu["steamId"] == steamId  then
-            taulu.teamnumber = player:GetTeam():GetTeamNumber()
-            taulu.lifeform = player:GetMapName()
+    
+        --update all values of Player Entry
+        if  taulu.steamId == steamId  then
+            taulu.teamnumber = player:GetTeam():GetTeamNumber() or 0
+            taulu.lifeform = player:GetMapName() or ""
             taulu.score = player.score or 0
             taulu.assists = player.assistkills or 0
             taulu.deaths = player.deaths or 0
@@ -849,25 +853,25 @@ function Plugin:UpdatePlayerInTable(client)
             taulu.totalPlayTime = player.totalPlayTime or 0
             taulu.playerLevel = player.playerLevel or 0
             
+            --if player is dead
             if player:GetIsAlive() == false then
                 taulu.damageTaken = {}
                 taulu.killstreak = 0
                 taulu.lifeform = "dead"
             end
            
-            taulu.steamId = Plugin:GetId(client)
-            taulu.name = player:GetName()
-            taulu.ping = client:GetPing()
-            taulu.teamnumber = player:GetTeamNumber()
-            taulu.isbot = client:GetIsVirtual()	
-            taulu.isCommander = player:GetIsCommander()
+            taulu.steamId = Plugin:GetId(client) or 0
+            taulu.name = player:GetName() or ""
+            taulu.ping = client:GetPing() or 0
+            taulu.teamnumber = player:GetTeamNumber() or 0
+            taulu.isbot = client:GetIsVirtual() or false	
+            taulu.isCommander = player:GetIsCommander() or false
             if taulu.isCommander then
                 if taulu.teamnumber == 1 then
                     taulu.lifeform = "marine_commander"
                 else taulu.lifeform = "alien_commander" end
             end
         end
-    --<<
     end
 end
 
@@ -917,12 +921,9 @@ end
 --addPlayertotable
 function Plugin:addPlayerToTable(client)
     if not client then return end
-    if Plugin:GetId(client) == nil then return end
-    if Plugin:IsClientInTable(client) == false then	
-        table.insert(Plugin.Players, Plugin:createPlayerTable(client))          
-    else
-        Plugin:setConnected(client)
-    end
+    if not Plugin:GetId(client) then return end
+    table.insert(Plugin.Players, Plugin:createPlayerTable(client))          
+    
 end
 
 -- add Player connected
@@ -944,63 +945,56 @@ function Plugin:createPlayerTable(client)
     return
     end
 
-    local newPlayer =
-    {   	
-        isbot = client:GetIsVirtual(),
-        steamId = Plugin:GetId(client),
-        name = player:GetName(),
-        score = HasMixin(player, "Scoring") and player:GetScore() or 0,
-        teamnumber = player:GetTeamNumber(),
-        x=0,
-        y=0,
-        z=0,
-        lx=0,
-        ly=0,
-        lz=0,
-        unstuck = false,
-        unstuckCounter = 0,
-        lastCoords =0,
-        index=0,	
-        lifeform = "",
-        weapon = "",
-        lastCommand = 0,
-        dc = false,
-        total_constructed=0,
-        code=0,
-        votedMap = 0,
-        hasVoted = false,
-        afkCount = 0,
-        isCommander = false,
-        weapons = {},
-        damageTaken = {},
-        kills = 0,
-        deaths = 0,
-        assists = 0,
-        totalKills = 0,
-        totalAssists = 0,
-        totalDeaths = 0,
-        playerSkill = 0,
-        totalScore = 0,
-        totalPlayTime = 0,
-        playerLevel = 0,
-        killstreak =0,
-        highestKillstreak =0,
-        jumps = 0,
-        walked = 0, --not used
-        alien_ELO = 0,
-        marine_ELO = 0,
-        marine_commander_ELO = 0,
-        alien_commander_ELO = 0,
-    }
-    --for bots
-    if newPlayer.isbot == true then
-        newPlayer.ping = 0
-        newPlayer.ipaddress = "127.0.0.1"
-    else
-        newPlayer.ping = client:GetPing()
-        newPlayer.ipaddress = IPAddressToString(Server.GetClientAddress(client))
+    local taulu= {}   
+    taulu.teamnumber = player:GetTeam():GetTeamNumber() or 0
+    taulu.lifeform = player:GetMapName() or ""
+    taulu.score = player.score or 0
+    taulu.assists = player.assistkills or 0
+    taulu.deaths = player.deaths or 0
+    taulu.kills = player.kills or 0
+    taulu.totalKills = player.totalKills or 0
+    taulu.totalAssists = player.totalAssists or 0
+    taulu.totalDeaths = player.totalDeaths or 0
+    taulu.playerSkill = player.playerSkill or 0
+    taulu.totalScore = player.totalScore or 0
+    taulu.totalPlayTime = player.totalPlayTime or 0
+    taulu.playerLevel = player.playerLevel or 0
+    
+    --if player is dead
+    if player:GetIsAlive() == false then
+        taulu.damageTaken = {}
+        taulu.killstreak = 0
+        taulu.lifeform = "dead"
     end
-    return newPlayer
+   
+    taulu.steamId = Plugin:GetId(client) or 0
+    taulu.name = player:GetName() or ""
+    taulu.ping = client:GetPing() or 0
+    taulu.teamnumber = player:GetTeamNumber() or 0
+    taulu.isbot = client:GetIsVirtual() or false	
+    taulu.isCommander = player:GetIsCommander() or false
+    if taulu.isCommander then
+        if taulu.teamnumber == 1 then
+            taulu.lifeform = "marine_commander"
+        else taulu.lifeform = "alien_commander" end
+    end	        
+    taulu.dc = false
+    taulu.total_constructed=0        
+    taulu.weapons = {}
+    taulu.damageTaken = {}        
+    taulu.killstreak =0
+    taulu.highestKillstreak =0
+    taulu.jumps = 0
+            
+    --for bots
+    if taulu.isbot == true then
+        taulu.ping = 0
+        taulu.ipaddress = "127.0.0.1"
+    else
+        taulu.ping = client:GetPing()
+        taulu.ipaddress = IPAddressToString(Server.GetClientAddress(client))
+    end
+    return taulu
 end
 
 function Plugin:weaponsAddMiss(RBPSplayer,weapon)
@@ -1103,11 +1097,12 @@ function Plugin:updateWeaponData(player)
     -- checks if current weapon exists in weapons table,
     -- if it does increases it by 1, if it doesnt its added
     -- Test to use Think() Hook with this
+    if not player then return end
     local RBPSplayer = Plugin:getPlayerByName(player.name)
     local foundId = false
     if RBPSplayer == nil then return end
     local weapon = "none"
-    if player.GetActiveWeapon then weapon = player:GetActiveWeapon():GetMapName() end
+    if player:GetActiveWeapon() then weapon = player:GetActiveWeapon():GetMapName() end
     for i=1, #RBPSplayer.weapons do
         if RBPSplayer.weapons[i].name == weapon then foundId=i end
     end
@@ -1266,7 +1261,7 @@ function Plugin:getPlayerByClient(client)
 end
 
 function Plugin:addPlayerJoinedTeamToLog(player)
-    local client = player:GetClient()
+    local client = Server.GetOwner(player)
     if string.find(player.name,"Bot",nil,true) ~= nil and client:GetIsVirtual()then return end
     local playerJoin =
     {
@@ -1376,8 +1371,8 @@ function Plugin:addHitToLog(target, attacker, doer, damage, damageType)
     if attacker:isa("Player") then
         if target:isa("Player") then
             local attacker_id = Plugin:GetId(Server.GetOwner(attacker))
-            local target_id = Plugin:GetId(target:GetClient())
-            if not attacker_id or not target_id then return end
+            local target_id = Plugin:GetId(Server.GetOwner(target))
+            if not attacker_id or not target_id then return end            
             local aOrigin = attacker:GetOrigin()
             local tOrigin = target:GetOrigin()
             local weapon = "none"
@@ -1389,7 +1384,7 @@ function Plugin:addHitToLog(target, attacker, doer, damage, damageType)
                 action = "hit_player",	
                 
                 --Attacker
-                attacker_steamId = Plugin:GetId(Server.GetOwner(attacker)),
+                attacker_steamId = attacker_id,
                 attacker_team = attacker:GetTeam():GetTeamNumber(),
                 attacker_weapon = doer:GetMapName(),
                 attacker_lifeform = attacker:GetMapName(),
@@ -1400,7 +1395,7 @@ function Plugin:addHitToLog(target, attacker, doer, damage, damageType)
                 attackerz = string.format("%.4f", aOrigin.z),
                 
                 --Target
-                target_steamId = Plugin:GetId(Server.GetOwner(target)),
+                target_steamId = target_id,
                 target_team = target:GetTeam():GetTeamNumber(),
                 target_weapon = weapon,
                 target_lifeform = target:GetMapName(),
@@ -1428,7 +1423,7 @@ function Plugin:addHitToLog(target, attacker, doer, damage, damageType)
                 action = "hit_structure",	
                 
                 --Attacker
-                attacker_steamId =  Plugin:GetId(Server.GetOwner(attacker)),
+                attacker_steamId =  attacker_id,
                 attacker_team = attacker:GetTeam():GetTeamNumber(),
                 attacker_weapon = doer:GetMapName(),
                 attacker_lifeform = attacker:GetMapName(),
