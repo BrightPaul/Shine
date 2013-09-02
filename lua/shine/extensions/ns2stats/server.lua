@@ -100,9 +100,8 @@ function Plugin:Initialise()
     Shine.Timer.Create( "WeaponUpdate", 1, -1, function()
        if not GameHasStarted then return end
        local allPlayers = Shared.GetEntitiesWithClassname("Player")
-       for index, fromPlayer in ientitylist(allPlayers) do
-            local client = Server.GetOwner(fromPlayer)
-            Plugin:updateWeaponData(Plugin:getPlayerByClient(client))
+       for index, fromPlayer in ientitylist(allPlayers) do            
+            Plugin:updateWeaponData(fromPlayer)
        end
     end)
     
@@ -221,7 +220,6 @@ end
 
 --score changed
 function Plugin:OnPlayerScoreChanged(Player,state)
-    if not GameHasStarted then return end
     if not Plugin:getPlayerByClient(Player:GetClient()) then return end --Player not in Table
     if state then Plugin:UpdatePlayerInTable(Player:GetClient()) end
 end
@@ -521,14 +519,7 @@ function Plugin:SetGameState( Gamerules, NewState, OldState )
 end
 
 --Gameend
-function Plugin:EndGame( Gamerules, WinningTeam )     
-       local allPlayers = Shared.GetEntitiesWithClassname("Player")
-        --to get last Kills
-        for index, fromPlayer in ientitylist(allPlayers) do
-            local client = Server.GetOwner(fromPlayer)
-            Plugin:UpdatePlayerInTable(client)
-        end	
-        
+function Plugin:EndGame( Gamerules, WinningTeam )       
         Plugin.gameFinished = 1
         if Plugin.Config.Awards then Plugin:sendAwardListToClients() end
         Plugin:addPlayersToLog(1)
@@ -984,7 +975,7 @@ function Plugin:createPlayerTable(client)
         damageTaken = {},
         kills = 0,
         deaths = 0,
-        assists =0,
+        assists = 0,
         totalKills = 0,
         totalAssists = 0,
         totalDeaths = 0,
@@ -1107,16 +1098,18 @@ function Plugin:weaponsAddStructureHit(player,weapon, damage)
         
 end
 
-function Plugin:updateWeaponData(RBPSplayer)
+function Plugin:updateWeaponData(player)
     -- Happens every second,
     -- checks if current weapon exists in weapons table,
     -- if it does increases it by 1, if it doesnt its added
     -- Test to use Think() Hook with this
-    
+    local RBPSplayer = Plugin:getPlayerByName(player.name)
     local foundId = false
     if RBPSplayer == nil then return end
+    local weapon = "none"
+    if player.GetActiveWeapon then weapon = player:GetActiveWeapon():GetMapName() end
     for i=1, #RBPSplayer.weapons do
-        if RBPSplayer.weapons[i].name == RBPSplayer.weapon then foundId=i end
+        if RBPSplayer.weapons[i].name == weapon then foundId=i end
     end
     
     if foundId then
@@ -1124,7 +1117,7 @@ function Plugin:updateWeaponData(RBPSplayer)
     else --add new weapon
         table.insert(RBPSplayer.weapons,
         {
-            name = RBPSplayer.weapon,
+            name = weapon,
             time = 1,
             miss = 0,
             player_hit = 0,
