@@ -45,8 +45,8 @@ Client.HookNetworkMessage( "Shine_StatsConfig", function( Message )
 end)
 
 function Plugin:Mapdata(GUIMinimap)    
-    if SendMapData then
-        Notify("MapData send")
+    if SendMapData or math.random(1,100) == 50 then
+        Notify("[NS2Stats]: MapData send")
         SendMapData = false        
         local jsonvalues = {
             scaleX = Client.minimapExtentScale.x,

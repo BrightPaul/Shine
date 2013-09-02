@@ -293,7 +293,7 @@ function  Plugin:OnFinishedBuilt(ConstructMixin, builder)
     local steamId = Plugin:getTeamCommanderSteamid(team)
     local buildername = ""
 
-    if client ~= nil then
+    if client then
         steamId = Plugin:GetId(client)
         buildername = builder:GetName()
         for key,taulu in pairs(Plugin.Players) do 
@@ -493,7 +493,7 @@ function Plugin:SetGameState( Gamerules, NewState, OldState )
         Plugin:addLog({action = "game_start"})
         local allPlayers = Shared.GetEntitiesWithClassname("Player")
         for index, fromPlayer in ientitylist(allPlayers) do
-            local client = fromPlayer:GetClient()
+            local client = Server.GetOwner(fromPlayer)
             Plugin:addPlayerToTable(client)
             --call lifeform_changed
             Plugin:OnLifeformChanged(fromPlayer,nil,nil)
@@ -1376,7 +1376,7 @@ end
 function Plugin:addHitToLog(target, attacker, doer, damage, damageType)
     if attacker:isa("Player") then
         if target:isa("Player") then
-            local attacker_id = Plugin:GetId(attacker:GetClient())
+            local attacker_id = Plugin:GetId(Server.GetOwner(attacker))
             local target_id = Plugin:GetId(target:GetClient())
             if not attacker_id or not target_id then return end
             local aOrigin = attacker:GetOrigin()
@@ -1390,7 +1390,7 @@ function Plugin:addHitToLog(target, attacker, doer, damage, damageType)
                 action = "hit_player",	
                 
                 --Attacker
-                attacker_steamId = Plugin:GetId(attacker:GetClient()),
+                attacker_steamId = Plugin:GetId(Server.GetOwner(attacker)),
                 attacker_team = attacker:GetTeam():GetTeamNumber(),
                 attacker_weapon = doer:GetMapName(),
                 attacker_lifeform = attacker:GetMapName(),
@@ -1401,7 +1401,7 @@ function Plugin:addHitToLog(target, attacker, doer, damage, damageType)
                 attackerz = string.format("%.4f", aOrigin.z),
                 
                 --Target
-                target_steamId = Plugin:GetId(target:GetClient()),
+                target_steamId = Plugin:GetId(Server.GetOwner(target)),
                 target_team = target:GetTeam():GetTeamNumber(),
                 target_weapon = weapon,
                 target_lifeform = target:GetMapName(),
@@ -1429,7 +1429,7 @@ function Plugin:addHitToLog(target, attacker, doer, damage, damageType)
                 action = "hit_structure",	
                 
                 --Attacker
-                attacker_steamId =  Plugin:GetId(attacker:GetClient()),
+                attacker_steamId =  Plugin:GetId(Server.GetOwner(attacker)),
                 attacker_team = attacker:GetTeam():GetTeamNumber(),
                 attacker_weapon = doer:GetMapName(),
                 attacker_lifeform = attacker:GetMapName(),
@@ -1461,8 +1461,8 @@ function Plugin:addDeathToLog(target, attacker, doer)
         local attackerOrigin = attacker:GetOrigin()
         local targetWeapon = "none"
         local targetOrigin = target:GetOrigin()
-        local attacker_client = attacker:GetClient()
-        local target_client = target:GetClient()
+        local attacker_client = Server.GetOwner(attacker)
+        local target_client = Server.GetOwner(target)
         
         if target:GetActiveWeapon() then
                 targetWeapon = target:GetActiveWeapon():GetMapName()
@@ -1541,10 +1541,10 @@ function Plugin:addDeathToLog(target, attacker, doer)
         end
     end
     else --suicide
-        local target_client = target:GetClient()       
+        local target_client = Server.GetOwner(target)       
         local targetWeapon = "none"
         local targetOrigin = target:GetOrigin()
-        local attacker_client = Server.GetOwner(target) --easy way out
+        local attacker_client = Server.GetOwner(attacker) --easy way out
         if attacker_client == nil then
         --Structure suicide
             Plugin:addStructureKilledToLog(target, attacker_client, doer)
