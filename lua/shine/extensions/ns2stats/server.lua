@@ -71,6 +71,7 @@ RBPSnextAwardId= 0
 RBPSawards = {}
 GameHasStarted = false
 Currentgamestate = 0
+Buildings = {}
 
 function Plugin:Initialise()
     self.Enabled = true
@@ -159,10 +160,11 @@ end
 
 --Entity Killed
 function Plugin:OnEntityKilled(Gamerules, TargetEntity, Attacker, Inflictor, Point, Direction)    
-    if TargetEntity:isa("DropPack") then Plugin:OnPickableItemDestroyed(TargetEntity) 
-    elseif TargetEntity:isa("Player") then Plugin:addDeathToLog(TargetEntity, Attacker, Inflictor)
-    elseif TargetEntity:isa("Structure") then
-        
+    
+    if TargetEntity:isa("Player") then Plugin:addDeathToLog(TargetEntity, Attacker, Inflictor)
+    elseif TargetEntity:isa("DropPack") then Plugin:OnPickableItemDestroyed(TargetEntity) 
+    elseif Buildings[TargetEntity:GetId()] then
+        Buildings[TargetEntity:GetId()] = nil                 
         local structure = TargetEntity
         local structureOrigin = structure:GetOrigin()
         local techId = structure:GetTechId()
@@ -254,7 +256,7 @@ end
 
 --Building Dropped
 function Plugin:OnConstructInit( Building )
-    local ID = Building:GetId()    
+    local ID = Building:GetId()      
     local Team = Building:GetTeam()
 
     if not Team then return end
@@ -287,6 +289,7 @@ end
 --Building built
 function  Plugin:OnFinishedBuilt(ConstructMixin, builder)    
     local techId = ConstructMixin:GetTechId()
+    Buildings[ConstructMixin:GetId()] = true  
     local strloc = ConstructMixin:GetOrigin()
     local client = Server.GetOwner(builder)
     local team = ConstructMixin:GetTeamNumber()
@@ -480,7 +483,20 @@ end
 -- Game events 
 
 --Game reset
-function Plugin:OnGameReset()  
+function Plugin:OnGameReset()
+
+    --Resets all Stats
+        Plugin.LogPartNumber = 1
+        RBPSsuccessfulSends = 0
+        Gamestarted = 0
+        Plugin.gameFinished = 0
+        RBPSnextAwardId= 0
+        RBPSawards = {}
+        GameHasStarted = false
+        Currentgamestate = 0
+        Plugin.Players = {}
+        Buildings = {}
+  
     Plugin:addLog({action="game_reset"})
 end
 
@@ -535,17 +551,7 @@ function Plugin:EndGame( Gamerules, WinningTeam )
                     start_hive_tech = initialHiveTechIdString,
                 }       
         Plugin:AddServerInfos(params)
-        if Plugin.Config.Statsonline then Plugin:sendData()  end --senddata also clears log
-         --Resets all Stats
-        Plugin.LogPartNumber = 1
-        RBPSsuccessfulSends = 0
-        Gamestarted = 0
-        Plugin.gameFinished = 0
-        RBPSnextAwardId= 0
-        RBPSawards = {}
-        GameHasStarted = false
-        Currentgamestate = 0
-        Plugin.Players = {}
+        if Plugin.Config.Statsonline then Plugin:sendData()  end --senddata also clears log         
 end
 
 --PlayerConnected
@@ -1544,7 +1550,7 @@ function Plugin:addDeathToLog(target, attacker, doer)
         local target_client = Server.GetOwner(target)       
         local targetWeapon = "none"
         local targetOrigin = target:GetOrigin()
-        local attacker_client = Server.GetOwner(attacker) --easy way out
+        local attacker_client = Server.GetOwner(target) --easy way out
         if attacker_client == nil then
         --Structure suicide
             Plugin:addStructureKilledToLog(target, attacker_client, doer)
@@ -1673,7 +1679,9 @@ function Plugin:CreateCommands()
 end
 
 --Get NS2 IDs
+
 local a = true
+
 --For Bots
 function Plugin:GetIdbyName(Name)
     if a then Notify( "NS2Stats won't store game with bots. Disabling online stats now!") a=false end
