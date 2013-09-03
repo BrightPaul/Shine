@@ -88,7 +88,6 @@ function Plugin:Initialise()
         local allPlayers = Shared.GetEntitiesWithClassname("Player")
         for index, fromPlayer in ientitylist(allPlayers) do
             local client = fromPlayer:GetClient()
-            Plugin:addPlayerToTable(client)
             Plugin:UpdatePlayerInTable(client)
         end
     end
@@ -554,13 +553,18 @@ function Plugin:ClientConnect( Client )
     Server.SendNetworkMessage(Client,"Shine_StatsConfig",Config,true)    
     Plugin:UpdatePlayerInTable(Client)
     Plugin:setConnected(Client)
+    local connect={
+            action = "connect",
+            steamId = Plugin:GetId(Client)
+    }
+    Plugin:addLog(connect)
 end
 
 --PlayerDisconnect
 function Plugin:ClientDisconnect(Client)
     if not Client then return end
     local Player = Client:GetPlayer()
-    if not Player then return end
+    if not Player then return end    
     local connect={
             action = "disconnect",
             steamId = Plugin:GetId(Client),
