@@ -828,51 +828,43 @@ function Plugin:UpdatePlayerInTable(client)
     if not player:GetTeam() then return end
     
     local steamId = Plugin:GetId(client)
-    local origin = player:GetOrigin()
-    local weapon = "none"
    
     if not steamId then return end
     
     if not Plugin:IsClientInTable(client) then Plugin:addPlayerToTable(client) return end
+    local taulu = Plugin:getPlayerByClient(client)
+    taulu.teamnumber = player:GetTeam():GetTeamNumber() or 0
+    taulu.lifeform = player:GetMapName() or ""
+    taulu.score = player.score or 0
+    taulu.assists = player.assistkills or 0
+    taulu.deaths = player.deaths or 0
+    taulu.kills = player.kills or 0
+    taulu.totalKills = player.totalKills or 0
+    taulu.totalAssists = player.totalAssists or 0
+    taulu.totalDeaths = player.totalDeaths or 0
+    taulu.playerSkill = player.playerSkill or 0
+    taulu.totalScore = player.totalScore or 0
+    taulu.totalPlayTime = player.totalPlayTime or 0
+    taulu.playerLevel = player.playerLevel or 0
     
-    for key,taulu in pairs(Plugin.Players) do
-    
-        --update all values of Player Entry
-        if  taulu.steamId == steamId  then
-            taulu.teamnumber = player:GetTeam():GetTeamNumber() or 0
-            taulu.lifeform = player:GetMapName() or ""
-            taulu.score = player.score or 0
-            taulu.assists = player.assistkills or 0
-            taulu.deaths = player.deaths or 0
-            taulu.kills = player.kills or 0
-            taulu.totalKills = player.totalKills or 0
-            taulu.totalAssists = player.totalAssists or 0
-            taulu.totalDeaths = player.totalDeaths or 0
-            taulu.playerSkill = player.playerSkill or 0
-            taulu.totalScore = player.totalScore or 0
-            taulu.totalPlayTime = player.totalPlayTime or 0
-            taulu.playerLevel = player.playerLevel or 0
-            
-            --if player is dead
-            if player:GetIsAlive() == false then
-                taulu.damageTaken = {}
-                taulu.killstreak = 0
-                taulu.lifeform = "dead"
-            end
-           
-            taulu.steamId = Plugin:GetId(client) or 0
-            taulu.name = player:GetName() or ""
-            taulu.ping = client:GetPing() or 0
-            taulu.teamnumber = player:GetTeamNumber() or 0
-            taulu.isbot = client:GetIsVirtual() or false	
-            taulu.isCommander = player:GetIsCommander() or false
-            if taulu.isCommander then
-                if taulu.teamnumber == 1 then
-                    taulu.lifeform = "marine_commander"
-                else taulu.lifeform = "alien_commander" end
-            end
-        end
+    --if player is dead
+    if player:GetIsAlive() == false then
+        taulu.damageTaken = {}
+        taulu.killstreak = 0
+        taulu.lifeform = "dead"
     end
+   
+    taulu.steamId = Plugin:GetId(client) or 0
+    taulu.name = player:GetName() or ""
+    taulu.ping = client:GetPing() or 0
+    taulu.teamnumber = player:GetTeamNumber() or 0
+    taulu.isbot = client:GetIsVirtual() or false	
+    taulu.isCommander = player:GetIsCommander() or false
+    if taulu.isCommander then
+        if taulu.teamnumber == 1 then
+            taulu.lifeform = "marine_commander"
+        else taulu.lifeform = "alien_commander" end
+    end       
 end
 
 -- Stat add Functions
