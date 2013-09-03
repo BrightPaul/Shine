@@ -506,8 +506,8 @@ function Plugin:SetGameState( Gamerules, NewState, OldState )
         Plugin:addLog({action = "game_start"})
         local allPlayers = Shared.GetEntitiesWithClassname("Player")
         for index, fromPlayer in ientitylist(allPlayers) do
-            local client = Server.GetOwner(fromPlayer)
-            Plugin:addPlayerToTable(client)
+            local client = fromPlayer:GetClient()
+            Plugin:UpdatePlayerInTable(client)
             --call lifeform_changed
             Plugin:OnLifeformChanged(fromPlayer,nil,nil)
        end
@@ -837,7 +837,7 @@ function Plugin:UpdatePlayerInTable(client)
    
     if not steamId then return end
     
-    if not Plugin:getPlayerByClient(client) then Plugin:addPlayerToTable(client) end
+    if not Plugin:IsClientInTable(client) then Plugin:addPlayerToTable(client) end
     
     for key,taulu in pairs(Plugin.Players) do
     
@@ -1276,10 +1276,6 @@ function Plugin:addPlayerJoinedTeamToLog(player)
         score = player.score
     }
         Plugin:addLog(playerJoin)
-
-        --if newTeamNumber ~=0 then removed for now, caused quite a lot of load on ns2stats.org
-            --RBPSstats(client, "stats", newTeamNumber, "nil")
-        --end
 
 end
 
