@@ -88,7 +88,7 @@ function Plugin:Initialise()
         local allPlayers = Shared.GetEntitiesWithClassname("Player")
         for index, fromPlayer in ientitylist(allPlayers) do
             local client = fromPlayer:GetClient()
-            Plugin:UpdatePlayerInTable(client)
+            if client then Plugin:UpdatePlayerInTable(client) end
         end
     end
     
@@ -220,7 +220,7 @@ end
 --score changed
 function Plugin:OnPlayerScoreChanged(Player,state)
     if not Plugin:getPlayerByClient(Player:GetClient()) then return end --Player not in Table
-    if state then Plugin:UpdatePlayerInTable(Player:GetClient()) end
+    if state and Player:GetClient() then Plugin:UpdatePlayerInTable(Player:GetClient()) end
 end
 
 --Player jumps
@@ -507,13 +507,11 @@ function Plugin:SetGameState( Gamerules, NewState, OldState )
         local allPlayers = Shared.GetEntitiesWithClassname("Player")
         for index, fromPlayer in ientitylist(allPlayers) do
             local client = fromPlayer:GetClient()
-            Plugin:UpdatePlayerInTable(client)
-            --call lifeform_changed
-            Plugin:OnLifeformChanged(fromPlayer,nil,nil)
+            if client then Plugin:UpdatePlayerInTable(client) end          
        end
        
-     --send Playerlist            
-     Plugin:addPlayersToLog(0)    
+         --send Playerlist            
+         Plugin:addPlayersToLog(0)    
     end
 end
 
@@ -580,35 +578,35 @@ end
 -- Player joins a team
 function Plugin:PostJoinTeam( Gamerules, Player, NewTeam, Force )
     if not Player then return end
-    local Client = Player:GetClient()
+    local client = Player:GetClient()
     Plugin:addPlayerJoinedTeamToLog(Player)     
-    Plugin:UpdatePlayerInTable(Client)
+    Plugin:UpdatePlayerInTable(client)
 end
 
 --Player changes Name
 function Plugin:PlayerNameChange( Player, Name, OldName )
     if not Player then return end
-    local Client = Player:GetClient()
-    if Client == nil then return end
-    if Client:GetIsVirtual() then return end
-    Plugin:UpdatePlayerInTable(Client)
+    local client = Player:GetClient()
+    if client == nil then return end
+    if client:GetIsVirtual() then return end
+    Plugin:UpdatePlayerInTable(client)
 end
 
 --Player become Comm
 function Plugin:CommLoginPlayer( Chair, Player )
     if not Player then return end
-    local Client = Player:GetClient()
-    if Client:GetIsVirtual() then return end
-    Plugin:UpdatePlayerInTable(Client)
+    local client = Player:GetClient()
+    if client:GetIsVirtual() then return end
+    Plugin:UpdatePlayerInTable(client)
     Plugin:OnLifeformChanged(Player, nil, nil)
 end
 
 --Player log out CC
 function Plugin:CommLogout( Chair, Player )
     if not Player then return end
-    local Client = Player:GetClient()
-    if Client:GetIsVirtual() then return end
-    Plugin:UpdatePlayerInTable(Client)
+    local client = Player:GetClient()
+    if client:GetIsVirtual() then return end
+    Plugin:UpdatePlayerInTable(client)
     Plugin:OnLifeformChanged(Player, nil, nil)
 end
 
@@ -740,20 +738,21 @@ function Plugin:sendData()
         last_part = Plugin.gameFinished,
         map = Shared.GetMapName(),
     }    
-    Shared.SendHTTPRequest(self.Config.WebsiteDataUrl, "POST", params, function(response,status,params) Plugin:onHTTPResponseFromSend(client,"send",response,status,params,nil) end)
+    Shared.SendHTTPRequest(self.Config.WebsiteDataUrl, "POST", params, function(response,status,params) Plugin:onHTTPResponseFromSend(client,"send",response,status,params) end)
 end
 
 local resendtimes = 0
 
 --Analyze the answer of server
-function Plugin:onHTTPResponseFromSend(client,action,response,status,params,resend)	
+function Plugin:onHTTPResponseFromSend(client,action,response,status,params)	
         local message = json.decode(response)        
         if message then
         
             if string.len(response)>0 then --if we got somedata, that means send was completed
                 RBPSsuccessfulSends = RBPSsuccessfulSends +1
                  if not string.find(response,"Server log empty",nil, true) then
-                     if not resend then Plugin.Log[Plugin.LogPartNumber] = nil end
+                     Plugin.Log[Plugin.LogPartNumber] = nil
+                     resendtimes = 0
                      Plugin.LogPartNumber = Plugin.LogPartNumber + 1  
                 end
             end
@@ -779,20 +778,19 @@ function Plugin:onHTTPResponseFromSend(client,action,response,status,params,rese
             if string.len(response)>0 then --if we got somedata, that means send was completed
                 RBPSsuccessfulSends = RBPSsuccessfulSends +1
                 if not string.find(response,"Server log empty",nil, true) then
-                     if not resend then Plugin.Log[Plugin.LogPartNumber] = nil end
+                     Plugin.Log[Plugin.LogPartNumber] = nil
+                     resendtimes = 0
                      Plugin.LogPartNumber = Plugin.LogPartNumber + 1                      
                 end
             end
             Notify("NS2Stats.org: (" .. response .. ")")
        elseif not response then --we couldn't reach the NS2Stats Servers
-            if params then
-            
+            if params then            
                 -- try to resend log in the next 5 min once per min
                 if params.last_part == 0 then return end
-                if resendtimes == 0 then Plugin.Log[Plugin.LogPartNumber] = nil end  
-                if resendtimes >= 5 then resendtimes = 0 return end
+                if resendtimes >= 5 then return end
                 resendtimes = resendtimes + 1              
-                Shine.Timer.Simple(60, function() Shared.SendHTTPRequest(self.Config.WebsiteDataUrl, "POST", params, function(response,status,params) Plugin:onHTTPResponseFromSend(client,"send",response,status,params,true) end) end)               
+                Shine.Timer.Simple(60, function(client,response,status,params) Shared.SendHTTPRequest(self.Config.WebsiteDataUrl, "POST", params, function(response,status,params) Plugin:onHTTPResponseFromSend(client,"send",response,status,params) end) end)               
             end
     end
     
@@ -835,7 +833,7 @@ function Plugin:UpdatePlayerInTable(client)
    
     if not steamId then return end
     
-    if not Plugin:IsClientInTable(client) then Plugin:addPlayerToTable(client) end
+    if not Plugin:IsClientInTable(client) then Plugin:addPlayerToTable(client) return end
     
     for key,taulu in pairs(Plugin.Players) do
     
