@@ -73,6 +73,10 @@ GameHasStarted = false
 Currentgamestate = 0
 Buildings = {}
 
+--avoids overload at gameend
+
+stoplogging = false
+
 function Plugin:Initialise()
     self.Enabled = true
     
@@ -518,12 +522,12 @@ end
 --Gameend
 function Plugin:EndGame( Gamerules, WinningTeam )     
         if Plugin.Config.Awards then Plugin:sendAwardListToClients() end
-        Plugin:addPlayersToLog(1)      
+        Plugin:addPlayersToLog(1)
+        stoplogging = true      
         local initialHiveTechIdString = "None"            
         if Gamerules.initialHiveTechId then
                 initialHiveTechIdString = EnumToString(kTechId, Gamerules.initialHiveTechId)
-        end
-        
+        end        
         local params =
             {
                 version = ToString(Shared.GetBuildNumber()),
@@ -694,7 +698,10 @@ end
 local working = false
 
 --add to log
-function Plugin:addLog(tbl)    
+function Plugin:addLog(tbl)
+
+    if stoplogging and tbl.action ~= "player_list_end" then return end 
+    stoplogging = false   
     if not Plugin.Log then Plugin.Log = {} end
     if not Plugin.Log[Plugin.LogPartNumber] then Plugin.Log[Plugin.LogPartNumber] = "" end
     if not tbl then return end 
@@ -1117,26 +1124,20 @@ function Plugin:updateWeaponData(player)
 end
 
 function Plugin:OnLifeformChanged(Player, oldEntityId, newEntityId)
+   local taulu = Plugin:getPlayerByName(Player.name)
    -- search for playername in players table if its there player is real and lifeform change should be tracked
-   if tostring(Player.name) ~= nil and tostring(Player.name) ~= "NSPlayer" then
-     for key,taulu in pairs(Plugin.Players) do
-        if taulu.name == Player.name then
-            local Currentlifeform = Player:GetMapName()
-            if not Player:GetIsAlive() then Currentlifeform = "dead" end
-            if taulu.isCommander == true then
-                if taulu.teamnumber == 1 then
-                    Currentlifeform = "marine_commander"
-                else Currentlifeform = "alien_commander" end
-            end
-            if taulu.lifeform ~= Currentlifeform then                
-                taulu.lifeform = Currentlifeform
-                Plugin:addLog({action = "lifeform_change", name = taulu.name, lifeform = taulu.lifeform, steamId = taulu.steamId})
-                break                  
-            else
-                return
-            end 
+   if taulu then
+        local Currentlifeform = Player:GetMapName()
+        if not Player:GetIsAlive() then Currentlifeform = "dead" end
+        if taulu.isCommander == true then
+            if taulu.teamnumber == 1 then
+                Currentlifeform = "marine_commander"
+            else Currentlifeform = "alien_commander" end
         end
-     end
+        if taulu.lifeform ~= Currentlifeform then                
+            taulu.lifeform = Currentlifeform
+            Plugin:addLog({action = "lifeform_change", name = taulu.name, lifeform = taulu.lifeform, steamId = taulu.steamId})
+        end        
    end   
 end
 
