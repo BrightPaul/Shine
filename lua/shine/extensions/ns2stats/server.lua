@@ -518,29 +518,27 @@ function Plugin:SetGameState( Gamerules, NewState, OldState )
 end
 
 --Gameend
-function Plugin:EndGame( Gamerules, WinningTeam )       
-        Plugin.gameFinished = 1
+function Plugin:EndGame( Gamerules, WinningTeam )     
         if Plugin.Config.Awards then Plugin:sendAwardListToClients() end
-        Plugin:addPlayersToLog(1)
-      
-        local initialHiveTechIdString = "None"
-            
-            if Gamerules.initialHiveTechId then
-                    initialHiveTechIdString = EnumToString(kTechId, Gamerules.initialHiveTechId)
-            end
-            
-            local params =
-                {
-                    version = ToString(Shared.GetBuildNumber()),
-                    winner = WinningTeam:GetTeamNumber(),
-                    length = string.format("%.2f", Shared.GetTime() - Gamerules.gameStartTime),
-                    map = Shared.GetMapName(),
-                    start_location1 = Gamerules.startingLocationNameTeam1,
-                    start_location2 = Gamerules.startingLocationNameTeam2,
-                    start_path_distance = Gamerules.startingLocationsPathDistance,
-                    start_hive_tech = initialHiveTechIdString,
-                }       
+        Plugin:addPlayersToLog(1)      
+        local initialHiveTechIdString = "None"            
+        if Gamerules.initialHiveTechId then
+                initialHiveTechIdString = EnumToString(kTechId, Gamerules.initialHiveTechId)
+        end
+        
+        local params =
+            {
+                version = ToString(Shared.GetBuildNumber()),
+                winner = WinningTeam:GetTeamNumber(),
+                length = string.format("%.2f", Shared.GetTime() - Gamerules.gameStartTime),
+                map = Shared.GetMapName(),
+                start_location1 = Gamerules.startingLocationNameTeam1,
+                start_location2 = Gamerules.startingLocationNameTeam2,
+                start_path_distance = Gamerules.startingLocationsPathDistance,
+                start_hive_tech = initialHiveTechIdString,
+            }       
         Plugin:AddServerInfos(params)
+        Plugin.gameFinished = 1
         if Plugin.Config.Statsonline then Plugin:sendData()  end --senddata also clears log         
 end
 
