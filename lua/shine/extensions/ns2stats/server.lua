@@ -261,6 +261,24 @@ function Plugin:PlayerNameChange( Player, Name, OldName )
     Plugin:UpdatePlayerInTable(client)
 end
 
+--Player changes lifeform
+function Plugin:OnLifeformChanged(Player, oldEntityId, newEntityId)
+   -- search for playername in players table if its there player is real and lifeform change should be tracked
+    local taulu = Plugin:getPlayerByName(Player.name)
+    if not taulu then return end
+    Currentlifeform = Player:GetMapName()
+    if not Player:GetIsAlive() then Currentlifeform = "dead" end
+    if taulu.isCommander == true then
+        if taulu.teamnumber == 1 then
+            Currentlifeform = "marine_commander"
+        else Currentlifeform = "alien_commander" end
+    end
+    if taulu.lifeform ~= Currentlifeform then
+        taulu.lifeform = Currentlifeform
+        Plugin:addLog({action = "lifeform_change", name = taulu.name, lifeform = taulu.lifeform, steamId = taulu.steamId})
+    end     
+end
+
 --Player become Comm
 function Plugin:CommLoginPlayer( Chair, Player )
     if not Player then return end
@@ -1090,7 +1108,7 @@ end
 --add to log
 function Plugin:addLog(tbl)
 
-    if stoplogging and tbl.action ~= "player_list_end" then return end 
+    if stoplogging and tbl.action ~= "game_ended" then return end 
     stoplogging = false   
     if not Plugin.Log then Plugin.Log = {} end
     if not Plugin.Log[Plugin.LogPartNumber] then Plugin.Log[Plugin.LogPartNumber] = "" end
