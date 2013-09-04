@@ -1427,14 +1427,14 @@ function Plugin:getTeamCommanderSteamid(teamNumber)
 end
 
 function Plugin:getPlayerBySteamId(steamId)
-   if not steamId return end
+   if not steamId then return end
    for key,taulu in pairs(Plugin.Players) do         
             if tostring(taulu.steamId) == tostring(steamId)  then return taulu end
    end
 end
 
 function Plugin:getPlayerByName(name)
-    if name then return end
+    if not name then return end
     for key,taulu in pairs(Plugin.Players) do        
         if taulu["name"] == name then return taulu end	
     end
