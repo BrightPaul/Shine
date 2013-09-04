@@ -239,7 +239,7 @@ function Plugin:addPlayerJoinedTeamToLog(player)
     if not player then return end
     local client = Server.GetOwner(player)
     if not client then return end
-    if not Plugin:GetPlayerByName(player.name) then return end 
+    if not Plugin:getPlayerByName(player.name) then return end 
     local playerJoin =
     {
         action="player_join_team",
