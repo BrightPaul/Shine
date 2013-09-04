@@ -299,7 +299,6 @@ end
 
 --score changed
 function Plugin:OnPlayerScoreChanged(Player,state)
-    if not Player:GetIsAlive() then return end -- player is dead or spectating other player
     if not Plugin:getPlayerByClient(Player:GetClient()) then return end --Player not in Table
     if state and Player:GetClient() then Plugin:UpdatePlayerInTable(Player:GetClient()) end
 end
@@ -970,8 +969,7 @@ function Plugin:addDeathToLog(target, attacker, doer)
         local targetOrigin = target:GetOrigin()
         local attacker_client = Server.GetOwner(attacker)
         local target_client = Server.GetOwner(target)
-        if not target_client or attacker_client then return end
-        Plugin:UpdatePlayerInTable(target_client)  
+        if not target_client or not attacker_client then return end        
         if target:GetActiveWeapon() then
                 targetWeapon = target:GetActiveWeapon():GetMapName()
         end
@@ -1080,7 +1078,7 @@ function Plugin:addDeathToLog(target, attacker, doer)
             
             Plugin:addLog(deathLog)
             Plugin:UpdatePlayerInTable(target_client)  
-    end    
+    end
 end
 
 --Check Killstreaks
