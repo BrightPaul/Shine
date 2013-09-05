@@ -5,7 +5,8 @@
 Shine = Shine or {}
 
 local WebOpen = {
-	URL = "string (255)"
+	URL = "string (255)",
+	Titel = "string (255)"
 }
 
 Shared.RegisterNetworkMessage( "Shine_Web", WebOpen )
@@ -128,6 +129,6 @@ Hook.Add( "OnCommanderUILogout", "WebpageClose", function()
 	Shine:CloseWebPage()
 end )
 
-Client.HookNetworkMessage( "Shine_Web", function( Message )
-	Shine:OpenWebpage( Message.URL )
+Client.HookNetworkMessage( "Shine_Web", function( Message )	
+    Shine:OpenWebpage( Message.URL, Message.Titel )
 end )

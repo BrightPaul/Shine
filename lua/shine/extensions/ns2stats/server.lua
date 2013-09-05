@@ -230,7 +230,7 @@ function Plugin:OnBotRenamed(Bot)
 end
 
 -- Player joins a team
-function Plugin:PostJoinTeam( Gamerules, Player, NewTeam, Force )
+function Plugin:JoinTeam( Gamerules, Player, NewTeam, Force )
     if not Player then return end
     local client = Player:GetClient()
     Plugin:addPlayerJoinedTeamToLog(Player)     
@@ -266,7 +266,7 @@ end
 
 --Player changes lifeform
 function Plugin:OnLifeformChanged(Player, oldEntityId, newEntityId)
-   -- search for playername in players table if its there player is real and lifeform change should be tracked
+   -- search for playername in players table if its there player is real and lifeform change should be tracked   
     local taulu = Plugin:getPlayerByName(Player.name)
     if not taulu then return end
     Currentlifeform = Player:GetMapName()
@@ -1295,7 +1295,7 @@ function Plugin:createPlayerTable(client)
 
     local taulu= {}   
     taulu.teamnumber = player:GetTeam():GetTeamNumber() or 0
-    taulu.lifeform = player:GetMapName() or ""
+    taulu.lifeform = ""
     taulu.score = player.score or 0
     taulu.assists = player.assistkills or 0
     taulu.deaths = player.deaths or 0
@@ -1306,30 +1306,16 @@ function Plugin:createPlayerTable(client)
     taulu.playerSkill = player.playerSkill or 0
     taulu.totalScore = player.totalScore or 0
     taulu.totalPlayTime = player.totalPlayTime or 0
-    taulu.playerLevel = player.playerLevel or 0
-    
-    --if player is dead
-    if player:GetIsAlive() == false then
-        taulu.damageTaken = {}
-        taulu.killstreak = 0
-        taulu.lifeform = "dead"
-    end
-   
+    taulu.playerLevel = player.playerLevel or 0   
     taulu.steamId = Plugin:GetId(client) or 0
     taulu.name = player:GetName() or ""
     taulu.ping = client:GetPing() or 0
     taulu.teamnumber = player:GetTeamNumber() or 0
     taulu.isbot = client:GetIsVirtual() or false	
-    taulu.isCommander = player:GetIsCommander() or false
-    if taulu.isCommander then
-        if taulu.teamnumber == 1 then
-            taulu.lifeform = "marine_commander"
-        else taulu.lifeform = "alien_commander" end
-    end	        
+    taulu.isCommander = player:GetIsCommander() or false           
     taulu.dc = false
     taulu.total_constructed=0        
-    taulu.weapons = {}
-    taulu.damageTaken = {}        
+    taulu.weapons = {}      
     taulu.killstreak =0
     taulu.highestKillstreak =0
     taulu.jumps = 0
@@ -1359,7 +1345,6 @@ function Plugin:UpdatePlayerInTable(client)
     if not Plugin:IsClientInTable(client) then Plugin:addPlayerToTable(client) return end
     local taulu = Plugin:getPlayerByClient(client)
     taulu.teamnumber = player:GetTeam():GetTeamNumber() or 0
-    taulu.lifeform = player:GetMapName() or ""
     taulu.score = player.score or 0
     taulu.assists = player.assistkills or 0
     taulu.deaths = player.deaths or 0
@@ -1374,9 +1359,7 @@ function Plugin:UpdatePlayerInTable(client)
     
     --if player is dead
     if player:GetIsAlive() == false then
-        taulu.damageTaken = {}
-        taulu.killstreak = 0
-        taulu.lifeform = "dead"
+        taulu.killstreak = 0        
     end
    
     taulu.steamId = Plugin:GetId(client) or 0
@@ -1632,7 +1615,7 @@ function Plugin:CreateCommands()
             local playerid = ""
             if Data then playerid = Data[1].player_page_id or "" end
             local url = self.Config.WebsiteUrl .. "/player/player/" .. playerid
-            if self.Config.IngameBrowser then Server.SendNetworkMessage( Client, "Shine_Web", { URL = url }, true )
+            if self.Config.IngameBrowser then Server.SendNetworkMessage( Client, "Shine_Web", { URL = url, Titel = "My Stats" }, true )
             else Client.ShowWebpage(url)
             end
         end)      
@@ -1640,8 +1623,8 @@ function Plugin:CreateCommands()
     ShowPStats:Help("Shows stats from yourself")
     
     local ShowLastRound = self:BindCommand( "sh_showlastround", {"showlastround","lastround" }, function(Client)
-        if Plugin.Config.Lastroundlink == "" then Shine:Notify(Client, "", "", "[NS2Stats]: Last round was not safed at NS2Stats") return end  
-        if self.Config.IngameBrowser then Server.SendNetworkMessage( Client, "Shine_Web", { URL = Plugin.Config.Lastroundlink }, true )
+        if Plugin.Config.Lastroundlink == "" then Shine:Notify(Client, "", "", "[NS2Stats]: Last round was not safed at NS2Stats") return end      
+        if self.Config.IngameBrowser then Server.SendNetworkMessage( Client, "Shine_Web", { URL = Plugin.Config.Lastroundlink, Titel = "Last Rounds Stats" }, true )
         else Client.ShowWebpage(url)
         end     
     end,true)   
@@ -1652,8 +1635,8 @@ function Plugin:CreateCommands()
             local Data = json.decode( response )
             local serverid=""
             if Data then serverid = Data.id or "" end             
-            local url= self.Config.WebsiteUrl .. "/server/server/" .. serverid
-    	    if self.Config.IngameBrowser then Server.SendNetworkMessage( Client, "Shine_Web", { URL = url }, true )
+            local url= self.Config.WebsiteUrl .. "/server/server/" .. serverid            
+    	    if self.Config.IngameBrowser then Server.SendNetworkMessage( Client, "Shine_Web", { URL = url, Titel = "Server Stats" }, true )
     	    else Client.ShowWebpage(url) end
         end)        
     end,true)
