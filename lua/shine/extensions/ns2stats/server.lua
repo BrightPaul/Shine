@@ -129,6 +129,13 @@ function Plugin:OnGameReset()
         GameHasStarted = false
         Currentgamestate = 0
         Plugin.Players = {}
+        -- update stats all connected players
+        local allPlayers = Shared.GetEntitiesWithClassname("Player")
+        for index, fromPlayer in ientitylist(allPlayers) do
+            local client = Server.GetOwner(fromPlayer)
+            if client then Plugin:UpdatePlayerInTable(client) end          
+        end
+        
         Buildings = {}
   
     Plugin:addLog({action="game_reset"})
@@ -140,12 +147,7 @@ function Plugin:SetGameState( Gamerules, NewState, OldState )
     if NewState == kGameState.Started then        
         GameHasStarted = true             
         Gamestarted = Shared.GetTime()
-        Plugin:addLog({action = "game_start"})
-        local allPlayers = Shared.GetEntitiesWithClassname("Player")
-        for index, fromPlayer in ientitylist(allPlayers) do
-            local client = fromPlayer:GetClient()
-            if client then Plugin:UpdatePlayerInTable(client) end          
-       end
+        Plugin:addLog({action = "game_start"})      
        
          --send Playerlist            
          Plugin:addPlayersToLog(0)    
@@ -180,13 +182,14 @@ end
 --Player Events
 
 --PlayerConnected
-function Plugin:ClientConnect( Client )
+function Plugin:ClientConfirmConnect( Client )
     if not Client then return end 
     local Config = {}
     Config.WebsiteApiUrl = self.Config.WebsiteApiUrl
     Config.SendMapData = self.Config.SendMapData    
     Server.SendNetworkMessage(Client,"Shine_StatsConfig",Config,true)    
     Plugin:UpdatePlayerInTable(Client)
+    
     --player disconnected and came back
     local RBPSplayer = Plugin:getPlayerByClient(Client)
     
@@ -222,7 +225,7 @@ end
 
 --Bots renamed
 function Plugin:OnBotRenamed(Bot)
-    if Plugin:getPlayerByClient(Bot:GetPlayer():GetClient()) == nil then
+    if not Plugin:getPlayerByClient(Bot:GetPlayer():GetClient()) then
     Plugin:ClientConnect(Bot:GetPlayer():GetClient()) end       
 end
 
@@ -256,7 +259,7 @@ end
 function Plugin:PlayerNameChange( Player, Name, OldName )
     if not Player then return end
     local client = Player:GetClient()
-    if client == nil then return end
+    if not client then return end
     if client:GetIsVirtual() then return end
     Plugin:UpdatePlayerInTable(client)
 end
