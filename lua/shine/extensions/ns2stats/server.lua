@@ -182,7 +182,7 @@ end
 --Player Events
 
 --PlayerConnected
-function Plugin:ClientConfirmConnect( Client )
+function Plugin:ClientConnect( Client )
     if not Client then return end 
     local Config = {}
     Config.WebsiteApiUrl = self.Config.WebsiteApiUrl
@@ -202,6 +202,7 @@ function Plugin:ClientConfirmConnect( Client )
             steamId = Plugin:GetId(Client)
     }
     Plugin:addLog(connect)
+    Plugin:addPlayerJoinedTeamToLog( Client:GetPlayer() )
 end
 
 --PlayerDisconnect
