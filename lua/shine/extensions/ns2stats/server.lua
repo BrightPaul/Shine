@@ -192,7 +192,7 @@ function Plugin:ClientConnect( Client )
     --player disconnected and came back
     local taulu = Plugin:getPlayerByClient(Client)
     
-    if not taulu then if Plugin:GetId(Client) > 0 then Plugin:addPlayerToTable(Client) end  
+    if not taulu then if Plugin:GetId(Client) > 0 then Plugin:addPlayerToTable(Client) taulu = Plugin:getPlayerByClient(Client) end  
     else taulu.dc = false end
     
     local connect={
@@ -233,7 +233,7 @@ end
 function Plugin:JoinTeam( Gamerules, Player, NewTeam, Force )
     if not Player then return end
     local client = Player:GetClient()
-    if not client return end
+    if not client then return end
     
     Plugin:UpdatePlayerInTable(client)
     local taulu = Plugin:getPlayerByClient(client)
@@ -906,16 +906,20 @@ end
 function Plugin:OnStructureKilled(structure, attacker , doer)
     Buildings[structure:GetId()] = nil                
         local structureOrigin = structure:GetOrigin()
-        local techId = structure:GetTechId()
+        local techId = structure:GetTechId()        
         if not doer then doer = "none" end
         --Structure killed
         if attacker then 
-            local player = attacker         
-            local client = player:GetClient()
-            local steamId = 0
-            local weapon = ""
-
-            if client then steamId = Plugin:GetId(client) end
+            local player = attacker
+            local steamId = -1
+            
+            --attacker is a player
+            if player:isa("Player") then        
+                local client = player:GetClient()
+                if client then steamId = Plugin:GetId(client) end
+            end
+           
+            local weapon = ""        
 
             if not doer then weapon = "self"
             else weapon = doer:GetMapName()
