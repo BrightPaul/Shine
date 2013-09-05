@@ -132,7 +132,7 @@ function Plugin:OnGameReset()
         -- update stats all connected players
         local allPlayers = Shared.GetEntitiesWithClassname("Player")
         for index, fromPlayer in ientitylist(allPlayers) do
-            local client = Server.GetOwner(fromPlayer)
+            local client = fromPlayer:GetClient()
             if client then Plugin:UpdatePlayerInTable(client) end          
         end
         
@@ -187,22 +187,19 @@ function Plugin:ClientConnect( Client )
     local Config = {}
     Config.WebsiteApiUrl = self.Config.WebsiteApiUrl
     Config.SendMapData = self.Config.SendMapData    
-    Server.SendNetworkMessage(Client,"Shine_StatsConfig",Config,true)    
-    Plugin:UpdatePlayerInTable(Client)
+    Server.SendNetworkMessage(Client,"Shine_StatsConfig",Config,true)  
     
     --player disconnected and came back
-    local RBPSplayer = Plugin:getPlayerByClient(Client)
+    local taulu = Plugin:getPlayerByClient(Client)
     
-    if RBPSplayer then
-        RBPSplayer.dc=false
-    end
+    if not taulu then if Plugin:GetId(Client) > 0 then Plugin:addPlayerToTable(Client) end  
+    else taulu.dc = false end
     
     local connect={
             action = "connect",
-            steamId = Plugin:GetId(Client)
+            steamId = taulu.steamId
     }
     Plugin:addLog(connect)
-    Plugin:addPlayerJoinedTeamToLog( Client:GetPlayer() )
 end
 
 --PlayerDisconnect
@@ -210,22 +207,24 @@ function Plugin:ClientDisconnect(Client)
     if not Client then return end
     local Player = Client:GetPlayer()
     if not Player then return end 
-
-    local RBPSplayer = Plugin:getPlayerByClient(Client)    
-    if RBPSplayer then
-        RBPSplayer.dc=true
-    end
+    
+    local taulu = Plugin:getPlayerByClient(Client)
+    
+    if not taulu then return end
+    
+    taulu.dc = true
     
     local connect={
             action = "disconnect",
-            steamId = Plugin:GetId(Client),
-            score = Player.score
+            steamId = taulu.steamId,
+            score = taulu.score
     }
     Plugin:addLog(connect)
 end
 
 --Bots renamed
 function Plugin:OnBotRenamed(Bot)
+    if string.find(Bot.name,"Bot",nil,true) or string.find(Bot.name,"NSPlayer",nil,true) then return end
     if not Plugin:getPlayerByClient(Bot:GetPlayer():GetClient()) then
     Plugin:ClientConnect(Bot:GetPlayer():GetClient()) end       
 end
@@ -234,35 +233,33 @@ end
 function Plugin:JoinTeam( Gamerules, Player, NewTeam, Force )
     if not Player then return end
     local client = Player:GetClient()
-    Plugin:addPlayerJoinedTeamToLog(Player)     
+    if not client return end
+    
     Plugin:UpdatePlayerInTable(client)
-end
-
---add player joined a team to log
-function Plugin:addPlayerJoinedTeamToLog(player)
-    if not player then return end
-    local client = Server.GetOwner(player)
-    if not client then return end
-    if not Plugin:getPlayerByName(player.name) then return end 
+    local taulu = Plugin:getPlayerByClient(client)
+    taulu.team = NewTeam
+    
     local playerJoin =
     {
         action="player_join_team",
-        name = player.name,
-        team = player:GetTeam():GetTeamNumber(),
-        steamId = Plugin:GetId(client),
-        score = player.score
+        name = taulu.name,
+        team = NewTeam,
+        steamId = taulu.steamId,
+        score = taulu.score
     }
-        Plugin:addLog(playerJoin)
-
+    Plugin:addLog(playerJoin)   
 end
 
 --Player changes Name
 function Plugin:PlayerNameChange( Player, Name, OldName )
     if not Player then return end
-    local client = Player:GetClient()
-    if not client then return end
-    if client:GetIsVirtual() then return end
-    Plugin:UpdatePlayerInTable(client)
+    local taulu = Plugin:getPlayerByName(OldName)
+    
+    if not taulu then return end
+    
+    if taulu.isBot then return end
+    
+    taulu.name = Name
 end
 
 --Player changes lifeform
@@ -286,18 +283,24 @@ end
 --Player become Comm
 function Plugin:CommLoginPlayer( Chair, Player )
     if not Player then return end
-    local client = Player:GetClient()
-    if client:GetIsVirtual() then return end
-    Plugin:UpdatePlayerInTable(client)
+    local taulu = Plugin:getPlayerByName(Player.name)
+    
+    if not taulu then return end
+    
+    taulu.isCommander = true
+    
     Plugin:OnLifeformChanged(Player, nil, nil)
 end
 
 --Player log out CC
 function Plugin:CommLogout( Chair, Player )
     if not Player then return end
-    local client = Player:GetClient()
-    if client:GetIsVirtual() then return end
-    Plugin:UpdatePlayerInTable(client)
+    local taulu = Plugin:getPlayerByName(Player.name)
+    
+    if not taulu then return end
+    
+    taulu.isCommander = false
+    
     Plugin:OnLifeformChanged(Player, nil, nil)
 end
 
@@ -335,8 +338,8 @@ end
 function Plugin:addHitToLog(target, attacker, doer, damage, damageType)
     if attacker:isa("Player") then
         if target:isa("Player") then
-            local attacker_id = Plugin:GetId(Server.GetOwner(attacker))
-            local target_id = Plugin:GetId(Server.GetOwner(target))
+            local attacker_id = Plugin:GetId(attacker:GetClient())
+            local target_id = Plugin:GetId(target:GetClient())
             if not attacker_id or not target_id then return end            
             local aOrigin = attacker:GetOrigin()
             local tOrigin = target:GetOrigin()
@@ -687,7 +690,7 @@ function Plugin:OnConstructInit( Building )
 
     if not Owner then return end
 
-    local Client = Server.GetOwner( Owner )
+    local Client = Owner:GetClient()
     local techId = Building:GetTechId()
     local name = EnumToString(kTechId, techId)
     if name == "Hydra" or name == "GorgeTunnel" then return end --Gorge Buildings
@@ -712,7 +715,9 @@ function  Plugin:OnFinishedBuilt(ConstructMixin, builder)
     local techId = ConstructMixin:GetTechId()
     Buildings[ConstructMixin:GetId()] = true  
     local strloc = ConstructMixin:GetOrigin()
-    local client = Server.GetOwner(builder)
+    if builder then
+        local client = builder:GetClient()
+    end
     local team = ConstructMixin:GetTeamNumber()
     local steamId = Plugin:getTeamCommanderSteamid(team)
     local buildername = ""
@@ -720,12 +725,8 @@ function  Plugin:OnFinishedBuilt(ConstructMixin, builder)
     if client then
         steamId = Plugin:GetId(client)
         buildername = builder:GetName()
-        for key,taulu in pairs(Plugin.Players) do 
-            if taulu.steamId == steamId then
-                taulu.total_constructed = taulu.total_constructed + 1
-                break
-            end
-        end        
+        local taulu = Plugin:getPlayerByClient(client)
+        if taulu then taulu.total_constructed = taulu.total_constructed + 1 end               
     end
     
     local build=
@@ -788,9 +789,9 @@ end
 --UpgradesStarted
 function Plugin:OnTechStartResearch(ResearchMixin, researchNode, player)
     if player:isa("Commander") then
-    	local client = Server.GetOwner(player)
+    	local client = player:GetClient()
         local steamId = ""
-        if client ~= nil then steamId = Plugin:GetId(client) end
+        if not client then steamId = Plugin:GetId(client) end
         local techId = researchNode:GetTechId()
 
         local newUpgrade =
@@ -910,7 +911,7 @@ function Plugin:OnStructureKilled(structure, attacker , doer)
         --Structure killed
         if attacker then 
             local player = attacker         
-            local client = Server.GetOwner(player)
+            local client = player:GetClient()
             local steamId = 0
             local weapon = ""
 
@@ -971,8 +972,8 @@ function Plugin:addDeathToLog(target, attacker, doer)
         local attackerOrigin = attacker:GetOrigin()
         local targetWeapon = "none"
         local targetOrigin = target:GetOrigin()
-        local attacker_client = Server.GetOwner(attacker)
-        local target_client = Server.GetOwner(target)
+        local attacker_client = attacker:GetClient()
+        local target_client = target:GetClient()
         if not target_client or not attacker_client then return end        
         if target:GetActiveWeapon() then
                 targetWeapon = target:GetActiveWeapon():GetMapName()
@@ -1043,10 +1044,10 @@ function Plugin:addDeathToLog(target, attacker, doer)
                 Plugin:addLog(deathLog)       
     end
     elseif target then --suicide
-        local target_client = Server.GetOwner(target)       
+        local target_client = target:GetClient()       
         local targetWeapon = "none"
         local targetOrigin = target:GetOrigin()
-        local attacker_client = Server.GetOwner(target) --easy way out        
+        local attacker_client = target_client --easy way out        
         local attackerOrigin = targetOrigin
         local attacker = target
          local deathLog =

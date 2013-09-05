@@ -19,14 +19,17 @@ local Config = {
     SendMapData = "boolean",
 }
 Shared.RegisterNetworkMessage( "Shine_StatsConfig", Config )
-local SendMapData = false
+local SendMapData = nil
 local WebsiteApiUrl = ""
 
 //Get Mapdata
 Shine.Hook.Add( "Think", "MinimapHook", function()
-    if GUIMinimap then        
-        Shine.Hook.SetupClassHook("GUIMinimap","ShowMap","Mapdata","PassivePost" )
-        Shine.Hook.Remove( "Think", "MinimapHook" )
+    if GUIMinimap then
+        --wait for Config from Server
+        if SendMapData ~= nil then                
+            Plugin:Mapdata(GUIMinimap)
+            Shine.Hook.Remove( "Think", "MinimapHook" )
+        end    
     end
 end )
 
