@@ -183,7 +183,8 @@ end
 
 --PlayerConnected
 function Plugin:ClientConnect( Client )
-    if not Client then return end 
+    if not Client then return end
+    if Client:GetIsVirtual() then return end
     local Config = {}
     Config.WebsiteApiUrl = self.Config.WebsiteApiUrl
     Config.SendMapData = self.Config.SendMapData    
@@ -224,19 +225,49 @@ end
 
 --Bots renamed
 function Plugin:OnBotRenamed(Bot)
-    if string.find(Bot.name,"Bot",nil,true) or string.find(Bot.name,"NSPlayer",nil,true) then return end
-    if not Plugin:getPlayerByClient(Bot:GetPlayer():GetClient()) then
-    Plugin:ClientConnect(Bot:GetPlayer():GetClient()) end       
+    local player = Bot:GetPlayer()
+    local name = player:GetName()
+    if not name then return end    
+    if string.find(name, "NSPlayer") or string.find(name, "Bot",nil,true) and not string.find(name, "[BOT]",nil,true)  then return end    
+    local client = player:GetClient()    
+    if not client then return end
+    if not Plugin:getPlayerByClient(client) then
+    Plugin:addPlayerToTable(client) end
+    
+    local taulu = Plugin:getPlayerByName(Player:GetName())
+    
+    if not taulu then return end
+    
+    --Bot connects
+    local connect={
+            action = "connect",
+            steamId = taulu.steamId
+    }
+    
+    Plugin:addLog(connect) 
+  
+    -- Bot joins Team
+    local playerJoin =
+    {
+        action="player_join_team",
+        name = taulu.name,
+        team = taulu.team,
+        steamId = taulu.steamId,
+        score = taulu.score
+    }
+    Plugin:addLog(playerJoin)   
+        
 end
 
+
 -- Player joins a team
-function Plugin:JoinTeam( Gamerules, Player, NewTeam, Force )
-    if not Player then return end
-    local client = Player:GetClient()
-    if not client then return end
+function Plugin:PostJoinTeam( Gamerules, Player, OldTeam, NewTeam, Force, ShineForce)
+  
+    local taulu = Plugin:getPlayerByClient(Player:GetClient())
     
-    Plugin:UpdatePlayerInTable(client)
-    local taulu = Plugin:getPlayerByClient(client)
+    if not taulu then return end
+    
+    taulu.name = Player.name
     taulu.team = NewTeam
     
     local playerJoin =
@@ -690,7 +721,7 @@ function Plugin:OnConstructInit( Building )
 
     if not Owner then return end
 
-    local Client = Owner:GetClient()
+    local Client = Server.GetOwner( Owner )
     local techId = Building:GetTechId()
     local name = EnumToString(kTechId, techId)
     if name == "Hydra" or name == "GorgeTunnel" then return end --Gorge Buildings
@@ -789,15 +820,14 @@ end
 --UpgradesStarted
 function Plugin:OnTechStartResearch(ResearchMixin, researchNode, player)
     if player:isa("Commander") then
-    	local client = player:GetClient()
-        local steamId = ""
-        if not client then steamId = Plugin:GetId(client) end
+    	local client = player:GetClient()        
+        if client then steamId = Plugin:GetId(client) end
         local techId = researchNode:GetTechId()
 
         local newUpgrade =
         {
         structure_id = ResearchMixin:GetId(),
-        commander_steamid = steamId,
+        commander_steamid = steamId or -1,
         team = player:GetTeamNumber(),
         cost = GetCostForTech(techId),
         upgrade_name = EnumToString(kTechId, techId),
@@ -992,7 +1022,7 @@ function Plugin:addDeathToLog(target, attacker, doer)
                 action = "death",	
                 
                 --Attacker
-                attacker_steamId = Plugin:GetId(attacker_client),
+                attacker_steamId = Plugin:GetId(attacker_client) or -1,
                 attacker_team = ((HasMixin(attacker, "Team") and attacker:GetTeamType()) or kNeutralTeamType),
                 attacker_weapon = doer:GetMapName(),
                 attacker_lifeform = attacker:GetMapName(), --attacker:GetPlayerStatusDesc(),
@@ -1003,7 +1033,7 @@ function Plugin:addDeathToLog(target, attacker, doer)
                 attackerz = string.format("%.4f", attackerOrigin.z),
                 
                 --Target
-                target_steamId = Plugin:GetId(target_client),
+                target_steamId = Plugin:GetId(target_client) or -1,
                 target_team = target:GetTeamType(),
                 target_weapon = targetWeapon,
                 target_lifeform = target:GetMapName(), --target:GetPlayerStatusDesc(),
@@ -1189,7 +1219,7 @@ function Plugin:AddServerInfos(params)
     params.private = self.Config.Competitive
     params.autoarrange = false --use Shine plugin settings later?
     local ip = IPAddressToString(Server.GetIpAddress()) 
-    if not string.find(ip,":") then ip = ip .. ":27015" end
+    if not string.find(ip,":") then ip = ip .. ":" .. Server.GetPort() end
     params.serverInfo =
     {
         password = "",
@@ -1342,11 +1372,6 @@ function Plugin:UpdatePlayerInTable(client)
     if not client then return end    
     local player = client:GetPlayer()    
     if not player then return end
-    if not player:GetTeam() then return end
-    
-    local steamId = Plugin:GetId(client)
-   
-    if not steamId then return end
     
     if not Plugin:IsClientInTable(client) then Plugin:addPlayerToTable(client) return end
     local taulu = Plugin:getPlayerByClient(client)
@@ -1368,7 +1393,6 @@ function Plugin:UpdatePlayerInTable(client)
         taulu.killstreak = 0        
     end
    
-    taulu.steamId = Plugin:GetId(client) or 0
     taulu.name = player:GetName() or ""
     taulu.ping = client:GetPing() or 0
     taulu.teamnumber = player:GetTeamNumber() or 0
@@ -1480,13 +1504,16 @@ end
 --GetIds
 
 function Plugin:GetId(client)
-    local id = -1 --placeholder
-    if client then 
-        id = client:GetUserId()
-        if id == 0 then id = Plugin:GetIdbyName(client:GetPlayer():GetName()) end --0 = Bot
-    end
+    if not client then return end
     
-    return id    
+    local taulu = Plugin:getPlayerByClient(client)
+    if taulu then return taulu.steamId end
+    
+    local id = client:GetUserId()
+    if client:GetIsVirtual() then id = Plugin:GetIdbyName(client:GetPlayer():GetName()) end
+    if id then return id end
+    
+    return -1   
 end
 
 --display warning only once
@@ -1499,7 +1526,7 @@ function Plugin:GetIdbyName(Name)
     
     --disable Onlinestats
     if a then Notify( "NS2Stats won't store game with bots. Disabling online stats now!") a=false end
-    Plugin.Config.Statsonline = false
+    --Plugin.Config.Statsonline = false
     
     local newId=""
     local letters = " (){}[]/.,+-=?!*1234567890aAbBcCdDeEfFgGhHiIjJkKlLmMnNoOpPqQrRsStTuUvVwWxXyYzZ"
