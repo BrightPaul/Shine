@@ -749,7 +749,8 @@ function  Plugin:OnFinishedBuilt(ConstructMixin, builder)
     local techId = ConstructMixin:GetTechId()
     Buildings[ConstructMixin:GetId()] = true  
     local strloc = ConstructMixin:GetOrigin()
-    if builder then
+    if not builder then return end
+    if builder:isa("Player") then
         local client = builder:GetClient()
     end
     local team = ConstructMixin:GetTeamNumber()
@@ -1008,10 +1009,9 @@ function Plugin:addDeathToLog(target, attacker, doer)
     if attacker  and doer and target then
         local attackerOrigin = attacker:GetOrigin()
         local targetWeapon = "none"
-        local targetOrigin = target:GetOrigin()
-        local attacker_client = attacker:GetClient()
+        local targetOrigin = target:GetOrigin()        
         local target_client = target:GetClient()
-        if not target_client or not attacker_client then return end        
+        if not target_client then return end        
         if target:GetActiveWeapon() then
                 targetWeapon = target:GetActiveWeapon():GetMapName()
         end
@@ -1020,7 +1020,9 @@ function Plugin:addDeathToLog(target, attacker, doer)
         if attacker:isa("Player") then
             local deathLog =
             {
+                local attacker_client = attacker:GetClient()
                 
+                if not attacker_client then return end
                 --general
                 action = "death",	
                 

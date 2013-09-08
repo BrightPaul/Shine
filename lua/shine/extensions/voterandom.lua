@@ -215,7 +215,7 @@ function Plugin:RequestNS2Stats( Gamerules, Targets, TeamMembers, Callback )
 	end
 
     -- determ to use NS2Stats or plugin
-    local URL = ""
+    local URL = nil
     if not RBPS then URl = Shine.Plugins.ns2stats.Config.WebsiteUrl .. "/api/players"
 	else URL = RBPS.websiteUrl.."/api/players" end
 	
