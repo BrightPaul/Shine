@@ -233,8 +233,7 @@ function Plugin:OnBotRenamed(Bot)
     if not Plugin:getPlayerByClient(client) then
     Plugin:addPlayerToTable(client) end
     
-    local taulu = Plugin:getPlayerByName(Player:GetName())
-    
+    local taulu = Plugin:getPlayerByClient(client)    
     if not taulu then return end
     
     --Bot connects
@@ -261,7 +260,7 @@ end
 
 -- Player joins a team
 function Plugin:PostJoinTeam( Gamerules, Player, OldTeam, NewTeam, Force, ShineForce)
-  
+
     local taulu = Plugin:getPlayerByClient(Player:GetClient())
     
     if not taulu then Plugin:UpdatePlayerInTable(Player:GetClient()) taulu = Plugin:getPlayerByClient(Player:GetClient()) end
@@ -340,8 +339,7 @@ function Plugin:CommLogout( Chair, Player )
 end
 
 --score changed
-function Plugin:OnPlayerScoreChanged(Player,state)
-    if not Plugin:getPlayerByClient(Player:GetClient()) then return end --Player not in Table
+function Plugin:OnPlayerScoreChanged(Player,state)    
     if state and Player:GetClient() then Plugin:UpdatePlayerInTable(Player:GetClient()) end
 end
 
@@ -1361,7 +1359,7 @@ function Plugin:createPlayerTable(client)
     taulu.jumps = 0
             
     --for bots
-    if taulu.isbot == true then
+    if taulu.isbot then
         taulu.ping = 0
         taulu.ipaddress = "127.0.0.1"
     else
@@ -1379,8 +1377,9 @@ function Plugin:UpdatePlayerInTable(client)
     
     local taulu = Plugin:getPlayerByClient(client)
     if not taulu then return end
-   
-    taulu.teamnumber = player:GetTeam():GetTeamNumber() or 0
+    
+    if taulu.dc then return end
+    
     taulu.score = player.score or 0
     taulu.assists = player.assistkills or 0
     taulu.deaths = player.deaths or 0
@@ -1397,17 +1396,7 @@ function Plugin:UpdatePlayerInTable(client)
     if player:GetIsAlive() == false then
         taulu.killstreak = 0        
     end
-   
-    taulu.name = player:GetName() or ""
-    taulu.ping = client:GetPing() or 0
-    taulu.teamnumber = player:GetTeamNumber() or 0
-    taulu.isbot = client:GetIsVirtual() or false	
-    taulu.isCommander = player:GetIsCommander() or false
-    if taulu.isCommander then
-        if taulu.teamnumber == 1 then
-            taulu.lifeform = "marine_commander"
-        else taulu.lifeform = "alien_commander" end
-    end       
+    if not taulu.isbot then taulu.ping = client:GetPing() or 0 end        
 end
 
 
