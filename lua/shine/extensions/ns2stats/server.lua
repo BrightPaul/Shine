@@ -129,11 +129,10 @@ function Plugin:OnGameReset()
         GameHasStarted = false
         Currentgamestate = 0
         Plugin.Players = {}
-        -- update stats all connected players
-        local allPlayers = Shared.GetEntitiesWithClassname("Player")
-        for index, fromPlayer in ientitylist(allPlayers) do
-            local client = fromPlayer:GetClient()
-            if client then Plugin:UpdatePlayerInTable(client) end          
+        -- update stats all connected players       
+        for _, player in ipairs(GetEntitiesWithMixin("Scoring")) do
+            local client = Server.GetOwner(player)
+            if client then Plugin:addPlayerToTable(client) end          
         end
         
         Buildings = {}
@@ -1329,7 +1328,7 @@ end
 --create new entry
 function Plugin:createPlayerTable(client)	
     local player = client:GetPlayer()
-    if player == nil then
+    if not player then
         Notify("Tried to update nil player")
     return
     end
@@ -1379,7 +1378,7 @@ function Plugin:UpdatePlayerInTable(client)
     if not player then return end
     
     local taulu = Plugin:getPlayerByClient(client)
-    if not taulu then Plugin:addPlayerToTable(client) return end
+    if not taulu then return end
    
     taulu.teamnumber = player:GetTeam():GetTeamNumber() or 0
     taulu.score = player.score or 0
