@@ -263,7 +263,7 @@ function Plugin:PostJoinTeam( Gamerules, Player, OldTeam, NewTeam, Force, ShineF
 
     local taulu = Plugin:getPlayerByClient(Player:GetClient())
     
-    if not taulu then Plugin:UpdatePlayerInTable(Player:GetClient()) taulu = Plugin:getPlayerByClient(Player:GetClient()) end
+    if not taulu then Plugin:addPlayerToTable(Player:GetClient()) taulu = Plugin:getPlayerByClient(Player:GetClient()) end
     
     taulu.name = Player.name
     taulu.team = NewTeam
@@ -596,6 +596,7 @@ end
 --Player jumps
 function Plugin:OnPlayerJump(Player)
     local taulu = Plugin:getPlayerByName(Player.name)
+    if not taulu then return end
     taulu.jumps = taulu.jumps + 1   
 end
 
