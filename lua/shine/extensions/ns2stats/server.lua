@@ -1504,16 +1504,16 @@ end
 --GetIds
 
 function Plugin:GetId(client)
-    if not client then return end
+    if not client then return - 1 end
     
-    local taulu = Plugin:getPlayerByClient(client)
-    if taulu then return taulu.steamId end
-    
+    --try to get id from player Table first
+    local taulu = Plugin:getPlayerByName(client:GetPlayer():GetName())
+    if taulu then return taulu.steamId end 
+  
     local id = client:GetUserId()
     if client:GetIsVirtual() then id = Plugin:GetIdbyName(client:GetPlayer():GetName()) end
     if id then return id end
-    
-    return -1   
+    return -1
 end
 
 --display warning only once
