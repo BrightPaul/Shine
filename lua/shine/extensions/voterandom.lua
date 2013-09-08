@@ -215,8 +215,10 @@ function Plugin:RequestNS2Stats( Gamerules, Targets, TeamMembers, Callback )
 	end
 
     -- determ to use NS2Stats or plugin
-	local URL = RBPS.websiteUrl.."/api/players"
-	if not RBPS then URl = Shine.Plugins.ns2stats.Config.WebsiteUrl end
+    local URL = ""
+    if not RBPS then URl = Shine.Plugins.ns2stats.Config.WebsiteUrl .. "/api/players"
+	else URL = RBPS.websiteUrl.."/api/players" end
+	
 	local Params = {
 		players = TableConcat( Concat, "," )
 	}
@@ -453,7 +455,7 @@ Plugin.ShufflingModes = {
 
 	function( self, Gamerules, Targets, TeamMembers ) --NS2Stats ELO based.
 		local ChatName = Shine.Config.ChatName
-		if not RBPS and not Shine.Plugins.ns2stats.Enabled then 
+		if not RBPS and not Shine.Plugins.ns2stats then 
 			local FallbackMode = ModeStrings.ModeLower[ self.Config.FallbackMode ]
 
 			self:Notify( nil, "Shuffling based on ELO failed, falling back to %s sorting.", true, FallbackMode )

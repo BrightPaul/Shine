@@ -265,7 +265,7 @@ function Plugin:PostJoinTeam( Gamerules, Player, OldTeam, NewTeam, Force, ShineF
   
     local taulu = Plugin:getPlayerByClient(Player:GetClient())
     
-    if not taulu then return end
+    if not taulu then Plugin:UpdatePlayerInTable(Player:GetClient()) taulu = Plugin:getPlayerByClient(Player:GetClient()) end
     
     taulu.name = Player.name
     taulu.team = NewTeam
@@ -295,9 +295,14 @@ end
 
 --Player changes lifeform
 function Plugin:OnLifeformChanged(Player, oldEntityId, newEntityId)
-   -- search for playername in players table if its there player is real and lifeform change should be tracked   
-    local taulu = Plugin:getPlayerByName(Player.name)
+   -- search for playername in players table if its there player is real and lifeform change should be tracked
+    
+    local client = Server.GetOwner(Player)
+    if not client then return end
+   
+    local taulu = Plugin:getPlayerByClient(client)
     if not taulu then return end
+    
     Currentlifeform = Player:GetMapName()
     if not Player:GetIsAlive() then Currentlifeform = "dead" end
     if taulu.isCommander == true then
@@ -1373,8 +1378,9 @@ function Plugin:UpdatePlayerInTable(client)
     local player = client:GetPlayer()    
     if not player then return end
     
-    if not Plugin:IsClientInTable(client) then Plugin:addPlayerToTable(client) return end
     local taulu = Plugin:getPlayerByClient(client)
+    if not taulu then Plugin:addPlayerToTable(client) return end
+   
     taulu.teamnumber = player:GetTeam():GetTeamNumber() or 0
     taulu.score = player.score or 0
     taulu.assists = player.assistkills or 0
