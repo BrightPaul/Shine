@@ -759,13 +759,6 @@ Shine.AllPlugins = AllPlugins
 local AllPluginsArray = {}
 Shine.AllPluginsArray = AllPluginsArray
 
-local function AddToPluginsLists( Name )
-	if not AllPlugins[ Name ] then
-		AllPlugins[ Name ] = true
-		AllPluginsArray[ #AllPluginsArray + 1 ] = Name
-	end
-end
-
 --[[
 	Prepare shared plugins.
 
@@ -781,11 +774,15 @@ for Path in pairs( PluginFiles ) do
 		if not ClientPlugins[ Name ] then
 			local LoweredFileName = File:lower()
 
+			if not AllPlugins[ Name ] then
+				AllPluginsArray[ #AllPluginsArray + 1 ] = Name
+			end
+
 			if LoweredFileName == "shared.lua" then
 				ClientPlugins[ Name ] = "boolean" --Generate the network message.
-				AddToPluginsLists( Name )
+				AllPlugins[ Name ] = true
 			elseif LoweredFileName == "server.lua" then
-				AddToPluginsLists( Name )
+				AllPlugins[ Name ] = true
 			end
 
 			--Shared plugins should load into memory for network messages.
@@ -794,7 +791,10 @@ for Path in pairs( PluginFiles ) do
 	else
 		Name = Name:gsub( "%.lua", "" )
 
-		AddToPluginsLists( Name )
+		if not AllPlugins[ Name ] then
+			AllPlugins[ Name ] = true
+			AllPluginsArray[ #AllPluginsArray + 1 ] = Name
+		end
 	end
 end
 
