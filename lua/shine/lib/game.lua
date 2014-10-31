@@ -13,9 +13,9 @@ function Shine.GetGamemode()
 	local GameSetup = io.open( "game_setup.xml", "r" )
 
 	if not GameSetup then
-		Gamemode = "ns2"
+		Gamemode = "combat"
 
-		return "ns2"
+		return "combat"
 	end
 
 	local Data = GameSetup:read( "*all" )
@@ -24,7 +24,7 @@ function Shine.GetGamemode()
 
 	local Match = Data:match( "<name>(.+)</name>" )
 
-	Gamemode = Match or "ns2"
+	Gamemode = Match or "combat"
 
 	return Gamemode
 end

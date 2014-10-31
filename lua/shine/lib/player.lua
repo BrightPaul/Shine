@@ -3,7 +3,7 @@
 ]]
 
 local TeamNames = {
-	ns2 = {
+	combat = {
 		{ "Marines", "marines", "marine team" },
 		{ "Aliens", "aliens", "alien team" },
 		{ "Spectate", "spectate", "spectate" },
@@ -22,7 +22,7 @@ local TeamNames = {
 ]]
 function Shine:GetTeamName( Team, Capitals, Singular )
 	local Gamemode = self.GetGamemode()
-	local Names = TeamNames[ Gamemode ] or TeamNames.ns2
+	local Names = TeamNames[ Gamemode ] or TeamNames.combat
 
 	if Team > 3 or Team < 1 then
 		Team = 4

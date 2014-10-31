@@ -48,21 +48,18 @@ local ModeStrings = {
 		"Score based",
 		"Elo based",
 		"KDR based",
-		"Skill based"
 	},
 	ModeLower = {
 		"random",
 		"score based",
 		"Elo based",
-		"KDR based",
-		"skill based"
+		"KDR based"
 	},
 	Action = {
 		"randomly",
 		"based on score",
 		"based on Elo",
-		"based on KDR",
-		"based on skill"
+		"based on KDR"
 	}
 }
 Plugin.ModeStrings = ModeStrings
@@ -75,7 +72,7 @@ Plugin.DefaultConfig = {
 	RandomOnNextRound = true, --If false, then random teams are forced for a duration instead.
 	InstantForce = true, --Forces a shuffle of everyone instantly when the vote succeeds (for time based).
 	VoteTimeout = 60, --Time after the last vote before the vote resets.
-	BalanceMode = Plugin.MODE_HIVE, --How should teams be balanced?
+	BalanceMode = Plugin.MODE_KDR, --How should teams be balanced?
 	FallbackMode = Plugin.MODE_KDR, --Which method should be used if Elo/Hive fails?
 	BlockTeams = true, --Should team changing/joining be blocked after an instant force or in a round?
 	IgnoreCommanders = true, --Should the plugin ignore commanders when switching?
@@ -765,91 +762,6 @@ Plugin.ShufflingModes = {
 
 		return self.ShufflingModes[ self.MODE_SCORE ]( self, Gamerules, Targets,
 			TeamMembers, true, not Silent )
-	end,
-
-	--Hive data based. Relies on UWE's ranking data to be correct for it to work.
-	function( self, Gamerules, Targets, TeamMembers )
-		local SortTable = {}
-		local Count = 0
-		local Sorted = {}
-
-		local TargetCount = #Targets
-
-		for i = 1, TargetCount do
-			local Ply = Targets[ i ]
-
-			if Ply and Ply.GetPlayerSkill then
-				local SkillData = Ply:GetPlayerSkill()
-
-				if SkillData and SkillData > 0 then
-					Count = Count + 1
-					SortTable[ Count ] = { Player = Ply, Skill = SkillData }
-				end
-			end
-		end
-
-		TableSort( SortTable, function( A, B )
-			return A.Skill > B.Skill
-		end )
-
-		RandomiseSimilarSkill( SortTable, Count, 10 )
-
-		local Sorted = self:SortPlayersByRank( TeamMembers, SortTable, Count, TargetCount, function( Ply )
-			--[[local Client = GetOwner( Ply )
-			if Client and Client:GetIsVirtual() then
-				Client.Skill = Client.Skill or Random( 1000, 4000 )
-				return Client.Skill
-			end]]
-
-			if Ply.GetPlayerSkill then
-				return Ply:GetPlayerSkill()
-			end
-
-			return nil
-		end )
-
-		--If some players have rank 0 or no rank data, sort them with the fallback instead.
-		local FallbackTargets = {}
-
-		for i = 1, TargetCount do
-			local Player = Targets[ i ]
-
-			if Player and not Sorted[ Player ] then
-				FallbackTargets[ #FallbackTargets + 1 ] = Player
-				Sorted[ Player ] = true
-			end
-		end
-
-		if #FallbackTargets > 0 then
-			self.ShufflingModes[ self.Config.FallbackMode ]( self, Gamerules,
-				FallbackTargets, TeamMembers, true )
-
-			Shine:LogString( "[Skill Vote] Teams were sorted based on Hive skill ranking." )
-
-			local Marines = GetEntitiesForTeam( "Player", 1 )
-			local Aliens = GetEntitiesForTeam( "Player", 2 )
-
-			local MarineSkill = GetAverageSkill( Marines )
-			local AlienSkill = GetAverageSkill( Aliens )
-
-			self:Notify( nil, "Average skill rankings - Marines: %.1f. Aliens: %.1f.",
-				true, MarineSkill, AlienSkill )
-
-			return
-		end
-
-		EvenlySpreadTeams( Gamerules, TeamMembers )
-
-		Shine:LogString( "[Skill Vote] Teams were sorted based on Hive skill ranking." )
-
-		local Marines = GetEntitiesForTeam( "Player", 1 )
-		local Aliens = GetEntitiesForTeam( "Player", 2 )
-
-		local MarineSkill = GetAverageSkill( Marines )
-		local AlienSkill = GetAverageSkill( Aliens )
-
-		self:Notify( nil, "Average skill rankings - Marines: %.1f. Aliens: %.1f.",
-			true, MarineSkill, AlienSkill )
 	end
 }
 

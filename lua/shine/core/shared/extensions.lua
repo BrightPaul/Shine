@@ -206,7 +206,7 @@ function PluginMeta:LoadConfig()
 		local Gamemode = Shine.GetGamemode()
 
 		--Look for gamemode specific config file.
-		if Gamemode ~= "ns2" then
+		if Gamemode ~= "combat" then
 			local Paths = {
 				StringFormat( "%s%s/%s", Shine.Config.ExtensionDir, Gamemode, self.ConfigName ),
 				Path

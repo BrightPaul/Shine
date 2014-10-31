@@ -235,35 +235,6 @@ function Plugin:OnConstructInit( Building )
 	self:ResetAFKTime( Client )
 end
 
-function Plugin:OnRecycle( Building, ResearchID )
-	local ID = Building:GetId()
-	local Team = Building:GetTeam()
-
-	if not Team or not Team.GetCommander then return end
-
-	local Commander = Team:GetCommander()
-	if not Commander then return end
-
-	local Client = GetOwner( Commander )
-	if not Client then return end
-	
-	self:ResetAFKTime( Client )
-end
-
-function Plugin:OnCommanderTechTreeAction( Commander, ... )
-	local Client = GetOwner( Commander )
-	if not Client then return end
-	
-	self:ResetAFKTime( Client )
-end
-
-function Plugin:OnCommanderNotify( Commander, ... )
-	local Client = GetOwner( Commander )
-	if not Client then return end
-	
-	self:ResetAFKTime( Client )
-end
-
 --[[
 	Other plugins may wish to know this.
 ]]
