@@ -11,6 +11,7 @@ local Ceil = math.ceil
 local Clamp = math.Clamp
 local Floor = math.floor
 local GetNumPlayers = Shine.GetHumanPlayerCount
+local GetOwner = Server.GetOwner
 local InRange = math.InRange
 local Max = math.max
 local next = next
@@ -95,7 +96,8 @@ function Plugin:Initialise()
 	self.Config.NextMapVote = Clamp( self.Config.NextMapVote, 0, 1 )
 	self.Config.PercentToFinish = Clamp( self.Config.PercentToFinish, 0, 1 )
 	self.Config.PercentToStart = Clamp( self.Config.PercentToStart, 0, 1 )
-	
+	self.Config.VoteLength = Max( self.Config.VoteLength, 0.25 )
+
 	self.Round = 0
 
 	self.Vote = self.Vote or {}
@@ -125,6 +127,8 @@ function Plugin:Initialise()
 		end
 	end
 
+	self.MapProbabilities = {}
+
 	if self.Config.GetMapsFromMapCycle then
 		local Maps = Cycle and Cycle.maps
 
@@ -148,9 +152,13 @@ function Plugin:Initialise()
 						if tonumber( Map.rounds or Map.Rounds ) then
 							self.Config.RoundLimit = Max( tonumber( Map.rounds or Map.Rounds ), 0 )
 						end
+
+						local Chance = Clamp( tonumber( Map.chance or Map.Chance ) or 1, 0, 1 )
+						self.MapProbabilities[ Map.map ] = Chance
 					end
 				elseif IsType( Map, "string" ) then
 					ConfigMaps[ Map ] = true
+					self.MapProbabilities[ Map ] = 1
 				end
 			end
 		end
@@ -185,22 +193,20 @@ function Plugin:Initialise()
 		return false, "MapCycle.json is missing maps list"
 	end
 
-	if self.Config.EnableNextMapVote then
-		if AllowVotes then
-			if self.Config.NextMapVote == 1 or self.Config.RoundLimit > 0 then
-				self.VoteOnEnd = true
-			else
-				local Time = SharedTime()
-				local CycleTime = Cycle and ( Cycle.time * 60 ) or 1800
+	if self.Config.EnableNextMapVote and AllowVotes then
+		if self.Config.NextMapVote == 1 or self.Config.RoundLimit > 0 then
+			self.VoteOnEnd = true
+		else
+			local Time = SharedTime()
+			local CycleTime = Cycle and ( Cycle.time * 60 ) or 1800
 
-				self:CreateTimer( self.NextMapTimer,
-					( CycleTime * self.Config.NextMapVote ) - Time, 1, function()
-					local Players = Shine.GetAllPlayers()
-					if #Players > 0 then
-						self:StartVote( true )
-					end
-				end )
-			end
+			self:CreateTimer( self.NextMapTimer,
+				( CycleTime * self.Config.NextMapVote ) - Time, 1, function()
+				local Players = Shine.GetAllPlayers()
+				if #Players > 0 then
+					self:StartVote( true )
+				end
+			end )
 		end
 	end
 
@@ -642,17 +648,13 @@ function Plugin:JoinTeam( Gamerules, Player, NewTeam, Force, ShineForce )
 	if not ( self.CyclingMap or IsEndVote ) then return end
 	if not Player then return end
 	if ShineForce then return end
-
 	if NewTeam == 0 then return end
-	
-	local Time = SharedTime()
+
 	local Message = IsEndVote and "You cannot join a team whilst the map vote is in progress." or 
 		"The map is now changing, you cannot join a team."
 
-	if not Player.NextShineNotify or Player.NextShineNotify < Time then
+	if Shine:CanNotify( GetOwner( Player ) ) then
 		Shine:NotifyColour( Player, 255, 160, 0, Message )
-
-		Player.NextShineNotify = Time + 5
 	end
 
 	return false
@@ -733,7 +735,7 @@ function Plugin:GetVoteChoice( Map )
 
 	Map = Map:lower()
 
-	if Map == "ns2_" or Map == "ns2" then return nil end --Not specific enough.
+	if #Map < 4 then return nil end --Not specific enough.
 
 	for Name, Votes in pairs( Choices ) do
 		if Name:lower():find( Map, 1, true ) then
@@ -1122,6 +1124,53 @@ function Plugin:CanExtend()
 		and not self.Config.DontExtend[ CurMap ]
 end
 
+do
+	local TableRandom = table.ChooseRandom
+
+	local BaseEntryCount = 10
+
+	local function RemoveAllMatches( Table, Value )
+		local Offset = 0
+
+		for i = 1, #Table do
+			local Key = i - Offset
+
+			if Table[ Key ] == Value then
+				TableRemove( Table, Key )
+				Offset = Offset + 1
+			end
+		end
+	end
+
+	--[[
+		Chooses random maps from the remaining maps pool, weighting each map according
+		to their chance setting.
+	]]
+	function Plugin:ChooseRandomMaps( AllMaps, MapList, MaxOptions )
+		local MapBucket = {}
+		local Count = 0
+
+		for Map in pairs( AllMaps ) do
+			local Chance = self.MapProbabilities[ Map ] or 1
+			local NumEntries = Ceil( Chance * BaseEntryCount )
+
+			--The higher the chance, the more times the map appears in the bucket.
+			for i = 1, NumEntries do
+				Count = Count + 1
+				MapBucket[ Count ] = Map
+			end
+		end
+
+		while #MapList < MaxOptions and #MapBucket > 0 do
+			local Choice = TableRandom( MapBucket )
+
+			MapList[ #MapList + 1 ] = Choice
+
+			RemoveAllMatches( MapBucket, Choice )
+		end
+	end
+end
+
 --[[
 	Sets up and begins a map vote.
 ]]
@@ -1132,8 +1181,8 @@ function Plugin:StartVote( NextMap, Force )
 
 	self.StartingVote:Reset()
 
-	self.Vote.TotalVotes = 0 --Reset votes.
-	self.Vote.Voted = {} --Reset who has voted from last time.	
+	self.Vote.TotalVotes = 0
+	self.Vote.Voted = {}
 	
 	--First we compile the list of maps that are going to be available to vote for.
 	local MaxOptions = self.Config.MaxOptions
@@ -1210,10 +1259,10 @@ function Plugin:StartVote( NextMap, Force )
 		
 		if not DeniedMaps[ Nominee ] then
 			MapList[ #MapList + 1 ] = Nominee
-			AllMaps[ Nominee ] = nil --Remove this from the list of all maps as it's now in our vote list.
+			AllMaps[ Nominee ] = nil
 		end
 
-		Nominations[ i ] = nil --Remove the nomination.
+		Nominations[ i ] = nil
 	end
 
 	--If we have map extension enabled, ensure it's in the vote list.
@@ -1222,39 +1271,29 @@ function Plugin:StartVote( NextMap, Force )
 			MapList[ #MapList + 1 ] = CurMap
 			AllMaps[ CurMap ] = nil
 		end
+	else
+		--Otherwise remove it!
+		AllMaps[ CurMap ] = nil
 	end
 
 	local RemainingSpaces = MaxOptions - #MapList
 
-	--If we didn't have enough nominations to fill the vote list, add maps from the allowed list that weren't nominated.
+	--If we have more room, add maps from the allowed list that weren't nominated.
 	if RemainingSpaces > 0 then
 		if next( AllMaps ) then
-			for Name, _ in RandomPairs( AllMaps ) do
-				if AllowCurMap or Name ~= CurMap then
-					MapList[ #MapList + 1 ] = Name
-				end
-
-				if #MapList == MaxOptions then
-					break
-				end
-			end
+			self:ChooseRandomMaps( AllMaps, MapList, MaxOptions )
 		end
 	end
 
-	self.Vote.VoteList = {} --Our table of maps that are being voted for.
+	self.Vote.VoteList = {}
 	for i = 1, #MapList do
-		self.Vote.VoteList[ MapList[ i ] ] = 0 --Set each one to start with 0 votes.
+		self.Vote.VoteList[ MapList[ i ] ] = 0
 	end
 
-	--Get the list of maps as a comma separated string to print.
 	local OptionsText = TableConcat( MapList, ", " )
-
-	--Get our notification interval, length of the vote in seconds and the number of times to repeat our notification.
 	local VoteLength = self.Config.VoteLength * 60
 
 	local Time = SharedTime()
-
-	--This is when the map vote should end and collect its results.
 	local EndTime = Time + VoteLength
 
 	--Store these values for new clients.
@@ -1266,7 +1305,6 @@ function Plugin:StartVote( NextMap, Force )
 	end
 
 	self:SimpleTimer( 0.1, function()
-		--Notify players the map vote has started.
 		if not NextMap then
 			self:Notify( nil, "Map vote started." )
 		else
@@ -1277,45 +1315,47 @@ function Plugin:StartVote( NextMap, Force )
 	self:SendVoteOptions( nil, OptionsText, VoteLength, NextMap, self:GetTimeRemaining(),
 		not self.VoteOnEnd )
 
-	--This timer runs when the vote ends, and sorts out the results.
 	self:CreateTimer( self.VoteTimer, VoteLength, 1, function()
 		self:ProcessResults( NextMap )
 	end )
 end
 
 function Plugin:CreateCommands()
+	local function NotifyError( Player, Message, Format, ... )
+		if Player then
+			Shine:NotifyError( Player, Message, Format, ... )
+		else
+			Notify( Format and StringFormat( Message, ... ) or Message )
+		end
+	end
+
 	local function Nominate( Client, Map )
 		local Player = Client and Client:GetControllingPlayer()
 		local PlayerName = Player and Player:GetName() or "Console"
 
 		if not self.Config.Maps[ Map ] then
-			if Player then
-				Shine:NotifyError( Player, "%s is not on the map list.", true, Map )
-			else
-				Notify( StringFormat( "%s is not on the map list.", Map ) )
-			end
+			NotifyError( Player, "%s is not on the map list.", true, Map )
 
 			return
 		end
 
 		if not self:CanExtend() and Shared.GetMapName() == Map then
-			if Player then
-				Shine:NotifyError( Player, "You cannot nominate the current map." )
-			else
-				Notify( "You cannot nominate the current map." )
-			end
+			NotifyError( Player, "You cannot nominate the current map." )
 
 			return
 		end
-		
+
 		local Nominated = self.Vote.Nominated
 
 		if self.Config.ForcedMaps[ Map ] or TableContains( Nominated, Map ) then
-			if Player then
-				Shine:NotifyError( Player, "%s has already been nominated.", true, Map )
-			else
-				Notify( StringFormat( "%s has already been nominated.", Map ) )
-			end
+			NotifyError( Player, "%s has already been nominated.", true, Map )
+
+			return
+		end
+
+		local LastMaps = self:GetLastMaps()
+		if LastMaps and TableContains( LastMaps, Map ) then
+			NotifyError( Player, "%s was recently played and cannot be voted for yet.", true, Map )
 
 			return
 		end
@@ -1323,21 +1363,13 @@ function Plugin:CreateCommands()
 		local Count = #Nominated 
 
 		if Count >= self.MaxNominations then
-			if Player then
-				Shine:NotifyError( Player, "Nominations are full." )
-			else
-				Notify( "Nominations are full." )
-			end
+			NotifyError( Player, "Nominations are full." )
 
 			return
 		end
 
 		if self:VoteStarted() then
-			if Player then
-				Shine:NotifyError( Player, "A vote is already in progress." )
-			else
-				Notify( "A vote is already in progress." )
-			end
+			NotifyError( Player, "A vote is already in progress." )
 
 			return
 		end
@@ -1355,11 +1387,7 @@ function Plugin:CreateCommands()
 		local PlayerName = Player and Player:GetName() or "Console"
 
 		if not self.Config.EnableRTV then
-			if Client then
-				Shine:NotifyError( Player, "RTV has been disabled." )
-			else
-				Notify( "RTV has been disabled." )
-			end
+			NotifyError( Player, "RTV has been disabled." )
 
 			return
 		end
@@ -1367,11 +1395,7 @@ function Plugin:CreateCommands()
 		local Success, Err = self:CanStartVote()
 
 		if not Success then
-			if Client then
-				Shine:NotifyError( Player, Err )
-			else
-				Notify( Err )
-			end
+			NotifyError( Player, Err )
 
 			return
 		end
@@ -1388,11 +1412,7 @@ function Plugin:CreateCommands()
 			return
 		end
 		
-		if Player then
-			Shine:NotifyError( Player, Err )
-		else
-			Notify( Err )
-		end
+		NotifyError( Player, Err )
 	end
 	local StartVoteCommand = self:BindCommand( "sh_votemap", { "rtv", "votemap", "mapvote" },
 		VoteToChange, true )
@@ -1403,11 +1423,7 @@ function Plugin:CreateCommands()
 		local PlayerName = Player and Player:GetName() or "Console"
 
 		if not self:VoteStarted() then
-			if Player then
-				Shine:NotifyError( Player, "There is no map vote in progress." )
-			else
-				Notify( "There is no map vote in progress." )
-			end
+			NotifyError( Player, "There is no map vote in progress." )
 
 			return
 		end
@@ -1431,11 +1447,7 @@ function Plugin:CreateCommands()
 		if Err == "already voted" then
 			Shine.Commands.sh_revote.Func( Client, Map )
 		else
-			if Player then
-				Shine:NotifyError( Player, "%s is not a valid map choice.", true, Map )
-			else
-				Notify( StringFormat( "%s is not a valid map choice.", Map ) )
-			end
+			NotifyError( Player, "%s is not a valid map choice.", true, Map )
 		end
 	end
 	local VoteCommand = self:BindCommand( "sh_vote", "vote", Vote, true )
@@ -1447,11 +1459,7 @@ function Plugin:CreateCommands()
 		local PlayerName = Player and Player:GetName() or "Console"
 
 		if not self:VoteStarted() then
-			if Player then
-				Shine:NotifyError( Player, "There is no map vote in progress." )
-			else
-				Notify( "There is no map vote in progress." )
-			end
+			NotifyError( Player, "There is no map vote in progress." )
 
 			return
 		end
@@ -1472,11 +1480,7 @@ function Plugin:CreateCommands()
 			return
 		end
 
-		if Player then
-			Shine:NotifyError( Player, "%s is not a valid map choice.", true, Map )
-		else
-			Notify( StringFormat( "%s is not a valid map choice.", Map ) )
-		end
+		NotifyError( Player, "%s is not a valid map choice.", true, Map )
 	end
 	local ReVoteCommand = self:BindCommand( "sh_revote", "revote", ReVote, true )
 	ReVoteCommand:AddParam{ Type = "string", Error = "Please specify your new map choice." }
@@ -1487,11 +1491,7 @@ function Plugin:CreateCommands()
 		local PlayerName = Player and Player:GetName() or "Console"
 
 		if not self.Vote.CanVeto then
-			if Player then
-				Shine:NotifyError( Player, "There is no map change in progress." )
-			else
-				Notify( "There is no map change in progress." )
-			end
+			NotifyError( Player, "There is no map change in progress." )
 
 			return
 		end
@@ -1515,15 +1515,19 @@ function Plugin:CreateCommands()
 
 			Shine:CommandNotify( Client, "forced a map vote." )
 		else
-			if Client then
-				Shine:NotifyError( Client, "Unable to start a new vote, a vote is already in progress." )
-			else
-				Notify( "Unable to start a new vote, a vote is already in progress." )
-			end
+			NotifyError( Client, "Unable to start a new vote, a vote is already in progress." )
 		end
 	end
 	local ForceVoteCommand = self:BindCommand( "sh_forcemapvote", "forcemapvote", ForceVote )
 	ForceVoteCommand:Help( "Forces a map vote to start, if possible." )
+
+	local function NotifyPlayer( Player, Message, Format, ... )
+		if Player then
+			Shine:NotifyColour( Player, 255, 255, 255, Message, Format, ... )
+		else
+			Notify( Format and StringFormat( Message, ... ) or Message )
+		end
+	end
 
 	local function TimeLeft( Client )
 		local Cycle = self.MapCycle
@@ -1535,17 +1539,9 @@ function Plugin:CreateCommands()
 			if RoundsLeft > 1 then
 				local RoundMessage = StringFormat( "are %i rounds", RoundsLeft )
 				
-				if Player then
-					Shine:Notify( Player, "", "", "There %s remaining.", true, RoundMessage )
-				else
-					Notify( StringFormat( "There %s remaining.", RoundMessage ) )
-				end
+				NotifyPlayer( Player, "There %s remaining.", true, RoundMessage )
 			else
-				if Player then
-					Shine:Notify( Player, "", "", "The map will cycle on round end." )
-				else
-					Notify( "The map will cycle on round end." )
-				end
+				NotifyPlayer( Player, "The map will cycle on round end." )
 			end
 
 			return
@@ -1554,11 +1550,7 @@ function Plugin:CreateCommands()
 		local CycleTime = Cycle and ( Cycle.time * 60 ) or 1800
 
 		if not CycleTime then
-			if Player then
-				Shine:Notify( Player, "", "", "The server does not have a map cycle. No timelimit given." )
-			else
-				Notify( "The server does not have a map cycle. No timelimit given." )
-			end
+			NotifyPlayer( Player, "The server does not have a map cycle. No timelimit given." )
 
 			return
 		end
@@ -1572,11 +1564,7 @@ function Plugin:CreateCommands()
 			Message = "Map will change on round end."
 		end
 
-		if Player then
-			Shine:Notify( Player, "", "", Message, true, string.TimeToString( TimeLeft ) )
-		else
-			Notify( StringFormat( Message, string.TimeToString( TimeLeft ) ) )
-		end
+		NotifyPlayer( Player, Message, true, string.TimeToString( TimeLeft ) )
 	end
 	local TimeLeftCommand = self:BindCommand( "sh_timeleft", "timeleft", TimeLeft, true )
 	TimeLeftCommand:Help( "Displays the remaining time for the current map." )
@@ -1584,11 +1572,7 @@ function Plugin:CreateCommands()
 	local function NextMap( Client )
 		local Map = self:GetNextMap() or "unknown"
 
-		if Client then
-			Shine:Notify( Client, "", "", "The next map is currently set to %s.", true, Map )
-		else
-			Notify( StringFormat( "The next map is currently set to %s.", Map ) )
-		end
+		NotifyPlayer( Client, "The next map is currently set to %s.", true, Map )
 	end
 	local NextMapCommand = self:BindCommand( "sh_nextmap", "nextmap", NextMap, true )
 	NextMapCommand:Help( "Displays the next map in the cycle or the next map voted for." )

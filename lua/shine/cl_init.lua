@@ -15,6 +15,7 @@ local Scripts = {
 	"lib/class.lua",
 	"lib/math.lua",
 	"lib/map.lua",
+	"lib/game.lua",
 	"core/shared/hook.lua",
 	"core/shared/misc.lua",
 	"core/shared/logging.lua",
@@ -22,20 +23,26 @@ local Scripts = {
 	"lib/datatables.lua",
 	"lib/timer.lua",
 	"lib/query.lua",
-	"lib/game.lua",
 	"lib/player.lua",
+	"core/shared/commands.lua",
 	"core/client/commands.lua",
 	"core/shared/config.lua",
+	"core/client/config.lua",
 	"core/shared/votemenu.lua",
 	"core/client/votemenu.lua",
 	"core/shared/adminmenu.lua",
 	"core/client/adminmenu.lua",
 	"core/shared/extensions.lua",
 	"core/shared/chat.lua",
-	"core/shared/commands.lua",
 	"core/shared/webpage.lua",
 	"lib/screentext/sh_screentext.lua",
 	"lib/screentext/cl_screentext.lua"
+}
+
+local OnLoadedFuncs = {
+	[ "lib/game.lua" ] = function()
+		Shine.IsNS2Combat = Shine.GetGamemode() == "combat"
+	end
 }
 
 local StartupMessages = {}
@@ -51,4 +58,8 @@ end
 
 for i = 1, #Scripts do
 	include( "lua/shine/"..Scripts[ i ] )
+
+	if OnLoadedFuncs[ Scripts[ i ] ] then
+		OnLoadedFuncs[ Scripts[ i ] ]()
+	end
 end

@@ -53,13 +53,14 @@ function Shine:AddErrorReport( BaseError, Extra, Format, ... )
 	if Extra then
 		local ExtraString = Format and StringFormat( Extra, ... ) or Extra
 
-		String = StringFormat( "%s.\n%s", BaseError, ExtraString )
+		String = StringFormat( "%s\n%s", BaseError, ExtraString )
 	else
 		String = BaseError
 	end
 
 	if #ErrorQueue == 0 then
-		ErrorQueue[ 1 ] = StringFormat( "Operating system: %s.", OS )
+		ErrorQueue[ 1 ] = StringFormat( "Operating system: %s. Game: %s.", OS,
+			self.IsNS2Combat and "NS2: Combat" or "Natural Selection 2" )
 	end
 
 	ErrorQueue[ #ErrorQueue + 1 ] = String

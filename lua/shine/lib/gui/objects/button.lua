@@ -134,26 +134,6 @@ function Button:SetTextColour( Col )
 	self.Text:SetColor( Col )
 end
 
-function Button:SetTooltip( Text )
-	self.TooltipText = Text
-
-	function self:OnHover( X, Y )
-		local Tooltip = SGUI:Create( "Tooltip", self )
-		Tooltip:SetAnchor( GUIItem.Left, GUIItem.Top )
-		Tooltip:SetPos( Vector( X, Y, 0 ) )
-		Tooltip:SetText( self.TooltipText )
-		Tooltip:FadeIn()
-
-		self.Tooltip = Tooltip
-	end
-
-	function self:OnLoseHover()
-		if self.Tooltip then
-			self.Tooltip:FadeOut()
-		end
-	end
-end
-
 function Button:SetIsVisible( Bool )
 	if not self.Background then return end
 	
@@ -200,24 +180,15 @@ function Button:OnMouseDown( Key, DoubleClick )
 	end
 
 	if Key ~= InputKey.MouseButton0 then return end
-	if not self.Highlighted then return end
+	--We can't trust self.Highlighted.
+	if not self:MouseIn( self.Background ) then return end
 
 	return true, self
 end
 
-function Button:Cleanup()
-	if self.Parent then return end --Parent will clean up our objects for us.
-
-	if self.Background then
-		GUI.DestroyItem( self.Background )
-	end
-	
-	self.Background = nil
-end
-
 function Button:OnMouseUp( Key )
 	if not self:GetIsVisible() then return end
-	if not self.Highlighted then return end
+	if not self:MouseIn( self.Background ) then return end
 
 	local Time = Clock()
 

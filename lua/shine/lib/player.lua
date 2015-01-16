@@ -6,16 +6,17 @@ local TeamNames = {
 	ns2 = {
 		{ "Marines", "marines", "marine team" },
 		{ "Aliens", "aliens", "alien team" },
-		{ "Spectate", "spectate", "spectate" },
+		{ "Spectate", "spectators", "spectate" },
 		{ "Ready Room", "ready room", "ready room" }
 	},
 	mvm = {
 		{ "Blue Team", "blue team", "blue team" },
 		{ "Gold Team", "gold team", "gold team" },
-		{ "Spectate", "spectate", "spectate" },
+		{ "Spectate", "spectators", "spectate" },
 		{ "Ready Room", "ready room", "ready room" }
 	}
 }
+TeamNames.combat = TeamNames.ns2
 
 --[[
 	Returns a nice name for the given team number.
@@ -69,19 +70,6 @@ local function OnJoinError( Error )
 		"A player failed to join a team in EvenlySpreadTeams: %s.", Error ), Trace )
 end
 
-local OldRespawnPlayer = Team.RespawnPlayer
-
---[[
-	Occasionally Gamerules or whatever is repsonsible for adding players to teams
-	fails to do so. So, let's make sure a player is properly added to the team
-	when asked to respawn.
-]]
-function Team:RespawnPlayer( Player, Origin, Angles )
-	self:AddPlayer( Player )
-
-	return OldRespawnPlayer( self, Player, Origin, Angles )
-end
-
 --[[
 	Ensures no team has more than 1 extra player compared to the other.
 ]]
@@ -103,7 +91,7 @@ function Shine.EvenlySpreadTeams( Gamerules, TeamMembers )
 				local Player = Marine[ i ]
 
 				Marine[ i ] = nil
-				
+
 				Alien[ #Alien + 1 ] = Player
 			end
 		else
@@ -195,7 +183,7 @@ function Shine.GetHumanPlayerCount()
 			Count = Count + 1
 		end
 	end
-	
+
 	return Count
 end
 
@@ -262,16 +250,16 @@ end
 ]]
 function Shine.GetAllClients()
 	local Clients = {}
-	local Count = 1
+	local Count = 0
 
 	local GameIDs = Shine.GameIDs
 
 	for Client, ID in GameIDs:Iterate() do
-		Clients[ Count ] = Client
 		Count = Count + 1
+		Clients[ Count ] = Client
 	end
 
-	return Clients
+	return Clients, Count
 end
 
 --[[
@@ -294,9 +282,9 @@ end
 ]]
 function Shine.GetClientByNS2ID( ID )
 	if type( ID ) ~= "number" then return nil end
-	
+
 	local Clients = Shine.GameIDs
-	
+
 	for Client in Clients:Iterate() do
 		if Client:GetUserId() == ID then
 			return Client
@@ -344,7 +332,7 @@ end
 function Shine.NS2ToSteamID( ID )
 	ID = tonumber( ID )
 	if not ID then return "" end
-	
+
 	return StringFormat( "STEAM_0:%i:%i", ID % 2, Floor( ID * 0.5 ) )
 end
 
@@ -379,7 +367,7 @@ function Shine:GetClientBySteamID( ID )
 	local NS2ID = self.SteamIDToNS2( ID )
 
 	if not NS2ID then return nil end
-	
+
 	return self.GetClientByNS2ID( NS2ID )
 end
 
@@ -391,7 +379,7 @@ function Shine:GetClient( String )
 		local Num = tonumber( String )
 
 		local Result = self.GetClientByID( Num ) or self.GetClientByNS2ID( Num )
-		
+
 		if not Result then
 			return self.GetClientByName( tostring( String ) )
 		end
@@ -454,7 +442,9 @@ function Shine.GetClientInfo( Client )
 
 	local Player = Client:GetControllingPlayer()
 
-	if not Player then return ConsoleInfo end
+	if not Player then
+		return StringFormat( "Unknown[%i]", Client:GetUserId() )
+	end
 
-	return StringFormat( "%s[%s]", Player:GetName(), Client:GetUserId() )
+	return StringFormat( "%s[%i]", Player:GetName(), Client:GetUserId() )
 end
