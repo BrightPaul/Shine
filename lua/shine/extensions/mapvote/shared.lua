@@ -38,6 +38,7 @@ end
 local Shine = Shine
 local SGUI = Shine.GUI
 
+local SharedTime = Shared.GetTime
 local StringExplode = string.Explode
 local StringFormat = string.format
 local TableEmpty = table.Empty
@@ -47,14 +48,8 @@ Plugin.MapButtons = {}
 Plugin.MapVoteCounts = {}
 Plugin.EndTime = 0
 
-function Plugin:Initialise()
-	self.Enabled = true
-
-	return true
-end
-
 function Plugin:OnVoteMenuOpen()
-	local Time = Shared.GetTime()
+	local Time = SharedTime()
 
 	if ( self.NextVoteOptionRequest or 0 ) < Time and self.EndTime < Time then
 		self.NextVoteOptionRequest = Time + 10
@@ -64,7 +59,7 @@ function Plugin:OnVoteMenuOpen()
 end
 
 Shine.VoteMenu:EditPage( "Main", function( self )
-	local Time = Shared.GetTime()
+	local Time = SharedTime()
 
 	if ( Plugin.EndTime or 0 ) > Time then
 		self:AddTopButton( "Vote", function()
@@ -74,7 +69,7 @@ Shine.VoteMenu:EditPage( "Main", function( self )
 end, function( self )
 	local TopButton = self.Buttons.Top
 
-	local Time = Shared.GetTime()
+	local Time = SharedTime()
 
 	if Plugin.EndTime > Time then
 		if not SGUI.IsValid( TopButton ) or not TopButton:GetIsVisible() then
@@ -126,7 +121,7 @@ Shine.VoteMenu:AddPage( "MapVote", function( self )
 		self:SetPage( "Main" )
 	end )
 end, function( self )
-	local Time = Shared.GetTime()
+	local Time = SharedTime()
 
 	if Plugin.EndTime < Time then
 		self:SetPage( "Main" )
@@ -151,6 +146,7 @@ function Plugin:ReceiveEndVote( Data )
 
 	TableEmpty( self.MapVoteCounts )
 	TableEmpty( self.MapButtons )
+	Shine.ScreenText.End( "MapVote" )
 end
 
 local ButtonBoundMessage =
@@ -177,7 +173,7 @@ function Plugin:ReceiveVoteOptions( Message )
 	local Maps = StringExplode( Options, ", " )
 
 	self.Maps = Maps
-	self.EndTime = Shared.GetTime() + Duration
+	self.EndTime = SharedTime() + Duration
 
 	for i = 1, #Maps do
 		local Map = Maps[ i ]
@@ -207,8 +203,16 @@ function Plugin:ReceiveVoteOptions( Message )
 	end
 
 	if NextMap and ShowTimeLeft then
-		local ScreenText = Shine:AddMessageToQueue( 1, 0.95, 0.2,
-			VoteMessage, Duration, 255, 0, 0, 2, nil, nil, true )
+		local ScreenText = Shine.ScreenText.Add( "MapVote", {
+			X = 0.95, Y = 0.2,
+			Text = VoteMessage,
+			Duration = Duration,
+			R = 255, G = 0, B = 0,
+			Alignment = 2,
+			Size = 1,
+			FadeIn = 0.5,
+			IgnoreFormat = true
+		} )
 
 		ScreenText.TimeLeft = TimeLeft
 
@@ -253,8 +257,15 @@ function Plugin:ReceiveVoteOptions( Message )
 			end
 		end
 	else
-		local ScreenText = Shine:AddMessageToQueue( 1, 0.95, 0.2,
-			VoteMessage, Duration, 255, 0, 0, 2 )
+		local ScreenText = Shine.ScreenText.Add( "MapVote", {
+			X = 0.95, Y = 0.2,
+			Text = VoteMessage,
+			Duration = Duration,
+			R = 255, G = 0, B = 0,
+			Alignment = 2,
+			Size = 1,
+			FadeIn = 0.5
+		} )
 
 		ScreenText.Obj:SetText( StringFormat( ScreenText.Text,
 			string.TimeToString( ScreenText.Duration ) ) )

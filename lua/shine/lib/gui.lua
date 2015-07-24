@@ -60,6 +60,94 @@ function SGUI.GetChar( Char )
 	return WideStringToString( Char )
 end
 
+do
+	local StringExplode = string.Explode
+	local StringUTF8Length = string.UTF8Length
+	local StringUTF8Sub = string.UTF8Sub
+	local TableConcat = table.concat
+
+	--[[
+		Wraps text to fit the size limit. Used for long words...
+
+		Returns two strings, first one fits entirely on one line, the other may not, and should be
+		added to the next word.
+	]]
+	local function TextWrap( Label, Text, XPos, MaxWidth )
+		local i = 1
+		local FirstLine = Text
+		local SecondLine = ""
+		local Length = StringUTF8Length( Text )
+
+		--Character by character, extend the text until it exceeds the width limit.
+		repeat
+			local CurText = StringUTF8Sub( Text, 1, i )
+
+			--Once it reaches the limit, we go back a character, and set our first and second line results.
+			if XPos + Label:GetTextWidth( CurText ) > MaxWidth then
+				FirstLine = StringUTF8Sub( Text, 1, i - 1 )
+				SecondLine = StringUTF8Sub( Text, i )
+
+				break
+			end
+
+			i = i + 1
+		until i >= Length
+
+		return FirstLine, SecondLine
+	end
+
+	--[[
+		Word wraps text, adding new lines where the text exceeds the width limit.
+
+		This time, it shouldn't freeze the game...
+	]]
+	function SGUI.WordWrap( Label, Text, XPos, MaxWidth )
+		local Words = StringExplode( Text, " " )
+		local StartIndex = 1
+		local Lines = {}
+		local i = 1
+
+		--While loop, as the size of the Words table may increase.
+		while i <= #Words do
+			local CurText = TableConcat( Words, " ", StartIndex, i )
+
+			if XPos + Label:GetTextWidth( CurText ) > MaxWidth then
+				--This means one word is wider than the whole chatbox, so we need to cut it part way through.
+				if StartIndex == i then
+					local FirstLine, SecondLine = TextWrap( Label, CurText, XPos, MaxWidth )
+
+					Lines[ #Lines + 1 ] = FirstLine
+
+					--Add the second line to the next word, or as a new next word if none exists.
+					if Words[ i + 1 ] then
+						Words[ i + 1 ] = StringFormat( "%s %s", SecondLine, Words[ i + 1 ] )
+					else
+						Words[ i + 1 ] = SecondLine
+					end
+
+					StartIndex = i + 1
+				else
+					Lines[ #Lines + 1 ] = TableConcat( Words, " ", StartIndex, i - 1 )
+
+					--We need to jump back a step, as we've still got another word to check.
+					StartIndex = i
+					i = i - 1
+				end
+			elseif i == #Words then --We're at the end!
+				Lines[ #Lines + 1 ] = CurText
+			end
+
+			i = i + 1
+		end
+
+		Label:SetText( TableConcat( Lines, "\n" ) )
+	end
+end
+
+function SGUI.TenEightyPScale( Value )
+	return math.scaledown( Value, 1080, 1280 ) * ( 2 - ( 1080 / 1280 ) )
+end
+
 SGUI.SpecialKeyStates = {
 	Ctrl = false,
 	Alt = false,
@@ -76,8 +164,16 @@ Hook.Add( "PlayerKeyPress", "SGUICtrlMonitor", function( Key, Down )
 	end
 end, -20 )
 
-function SGUI:GetCtrlDown()
+function SGUI:IsControlDown()
 	return self.SpecialKeyStates.Ctrl
+end
+
+function SGUI:IsAltDown()
+	return self.SpecialKeyStates.Alt
+end
+
+function SGUI:IsShiftDown()
+	return self.SpecialKeyStates.Shift
 end
 
 --[[
@@ -318,8 +414,16 @@ end
 function SGUI:Register( Name, Table, Parent )
 	--If we have set a parent, then we want to setup a slightly different __index function.
 	if Parent then
+		Table.ParentControl = Parent
+
 		--This may not be defined yet, so we get it when needed.
-		local ParentTable
+		local ParentTable = self.Controls[ Parent ]
+
+		if ParentTable and ParentTable.ParentControl == Name then
+			error( StringFormat( "[SGUI] Cyclic dependency detected. %s depends on %s while %s also depends on %s.",
+				Name, Parent, Parent, Name ) )
+		end
+
 		function Table:__index( Key )
 			ParentTable = ParentTable or SGUI.Controls[ Parent ]
 
@@ -391,10 +495,9 @@ function SGUI:Create( Class, Parent )
 end
 
 --[[
-	Destroys an SGUI control, leaving the table in storage for use as a new object later.
+	Destroys an SGUI control.
 
-	This runs the control's cleanup function then empties its table.
-	The cleanup function should remove all GUI elements, this will not do it.
+	This runs the control's cleanup function. Do not attempt to use the object again.
 
 	Input: SGUI control object.
 ]]
@@ -529,7 +632,7 @@ Hook.Add( "OnMapLoad", "LoadGUIElements", function()
 			return SGUI:CallEvent( false, "OnMouseWheel", Down )
 		end,
 		OnMouseDown = function( _, Key, DoubleClick )
-			local Result, Control = SGUI:CallEvent( true, "OnMouseDown", Key )
+			local Result, Control = SGUI:CallEvent( true, "OnMouseDown", Key, DoubleClick )
 
 			if Result and Control then
 				if not Control.UsesKeyboardFocus then
@@ -573,7 +676,6 @@ end )
 --------------------- BASE CLASS ---------------------
 --[[
 	Base initialise. Be sure to override this!
-	Though you should call it in your override if you want to be schemed.
 ]]
 function ControlMeta:Initialise()
 	self.UseScheme = true
@@ -581,6 +683,8 @@ end
 
 --[[
 	Generic cleanup, for most controls this is adequate.
+
+	The only time you need to override it is if you have more than a background object.
 ]]
 function ControlMeta:Cleanup()
 	if self.Parent then return end
@@ -608,6 +712,11 @@ function ControlMeta:DeleteOnRemove( Control )
 	Table[ #Table + 1 ] = Control
 end
 
+--[[
+	Adds a function to be called when this control is destroyed.
+
+	It will be passed this control when called as its argument.
+]]
 function ControlMeta:CallOnRemove( Func )
 	self.__CallOnRemove = self.__CallOnRemove or {}
 
@@ -633,6 +742,8 @@ end
 	Sets a control's parent manually.
 ]]
 function ControlMeta:SetParent( Control, Element )
+	assert( Control ~= self, "[SGUI] Cannot parent an object to itself!" )
+
 	if self.Parent then
 		self.Parent.Children:Remove( self )
 		self.ParentElement:RemoveChild( self.Background )
@@ -675,7 +786,7 @@ end
 function ControlMeta:CallOnChildren( Name, ... )
 	if not self.Children then return nil end
 
-	--Call the event on every child of this object, no particular order.
+	--Call the event on every child of this object in the order they were added.
 	for Child in self.Children:Iterate() do
 		if Child[ Name ] and not Child._CallEventsManually then
 			local Result, Control = Child[ Name ]( Child, ... )
@@ -799,6 +910,9 @@ end
 
 local ScrW, ScrH
 
+--[[
+	Returns the absolute position of the control on the screen.
+]]
 function ControlMeta:GetScreenPos()
 	if not self.Background then return end
 
@@ -856,6 +970,18 @@ local MousePos
 --[[
 	Gets whether the mouse cursor is inside the bounds of a GUIItem.
 	The multiplier will increase or reduce the size we use to calculate this.
+
+	Inputs:
+		1. Element to check.
+		2. Multiplier value to increase/reduce the size of the bounding box.
+		3. X value to override the width of the bounding box.
+		4. Y value to override the height of the bounding box.
+	Outputs:
+		1. Boolean value to indicate whether the mouse is inside.
+		2. X position of the mouse relative to the element.
+		3. Y position of the mouse relative to the element.
+		4. If the mouse is inside, the size of the bounding box used.
+		5. If the mouse is inside, the element's absolute screen position.
 ]]
 function ControlMeta:MouseIn( Element, Mult, MaxX, MaxY )
 	if not Element then return end
@@ -898,60 +1024,196 @@ function ControlMeta:MouseIn( Element, Mult, MaxX, MaxY )
 	return false, PosX, PosY
 end
 
---[[
-	Sets an SGUI control to move from its current position.
+function ControlMeta:HasMouseFocus()
+	return SGUI.MouseDownControl == self
+end
 
-	TODO: Refactor to behave like FadeTo to allow multiple elements moving at once.
+local function SubtractValues( End, Start )
+	if IsType( End, "number" ) or not End.r then
+		return End - Start
+	end
 
-	Inputs:
-		1. New position vector.
-		2. Time delay before starting
-		3. Duration of movement.
-		4. Easing function (math.EaseIn, math.EaseOut, math.EaseInOut).
-		5. Easing power (higher powers are more 'sticky', they take longer to start and stop).
-		6. Callback function to run once movement is complete.
-		7. Optional element to apply movement to.
-]]
-function ControlMeta:MoveTo( NewPos, Delay, Time, EaseFunc, Power, Callback, Element )
-	self.MoveData = self.MoveData or {}
+	return SGUI.ColourSub( End, Start )
+end
 
-	local StartPos = Element and Element:GetPosition() or self.Background:GetPosition()
+local function CopyValue( Value )
+	if IsType( Value, "number" ) then
+		return Value
+	end
 
-	self.MoveData.NewPos = NewPos
-	self.MoveData.StartPos = StartPos
-	self.MoveData.Dir = NewPos - StartPos
+	if Value.r then
+		return SGUI.CopyColour( Value )
+	end
 
-	self.MoveData.EaseFunc = EaseFunc or math.EaseOut
-	self.MoveData.Power = Power or 3
-	self.MoveData.Callback = Callback
+	return Vector( Value.x, Value.y, 0 )
+end
 
-	local CurTime = Clock()
+function ControlMeta:EaseValue( Element, Start, End, Delay, Duration, Callback, EasingHandlers )
+	self.EasingProcesses = self.EasingProcesses or Map()
 
-	self.MoveData.StartTime = CurTime + Delay
-	self.MoveData.Duration = Time
-	self.MoveData.Elapsed = 0
-	--self.MoveData.EndTime = CurTime + Delay + Time
+	local Easers = self.EasingProcesses:Get( EasingHandlers )
+	if not Easers then
+		Easers = Map()
+		self.EasingProcesses:Add( EasingHandlers, Easers )
+	end
 
-	self.MoveData.Element = Element or self.Background
+	Element = Element or self.Background
 
-	self.MoveData.Finished = false
+	local EasingData = Easers:Get( Element )
+	if not EasingData then
+		EasingData = {}
+		Easers:Add( Element, EasingData )
+	end
+
+	EasingData.Element = Element
+	Start = Start or EasingHandlers.Getter( self, Element )
+	EasingData.Start = Start
+	EasingData.End = End
+	EasingData.Diff = SubtractValues( End, Start )
+	EasingData.CurValue = CopyValue( Start )
+	EasingData.Easer = EasingHandlers.Easer
+
+	EasingData.StartTime = Clock() + Delay
+	EasingData.Duration = Duration
+	EasingData.Elapsed = 0
+
+	EasingData.Callback = Callback
+
+	return EasingData
+end
+
+function ControlMeta:HandleEasing( Time, DeltaTime )
+	if not self.EasingProcesses or self.EasingProcesses:IsEmpty() then return end
+
+	for EasingHandler, Easings in self.EasingProcesses:Iterate() do
+		for Element, EasingData in Easings:Iterate() do
+			local Start = EasingData.StartTime
+			local Duration = EasingData.Duration
+
+			EasingData.Elapsed = EasingData.Elapsed + DeltaTime
+
+			local Elapsed = EasingData.Elapsed
+
+			if Start <= Time then
+				if Elapsed <= Duration then
+					local Progress = Elapsed / Duration
+					if EasingData.EaseFunc then
+						Progress = EasingData.EaseFunc( Progress, EasingData.Power )
+					end
+
+					EasingData.Easer( self, Element, EasingData, Progress )
+					EasingHandler.Setter( self, Element, EasingData.CurValue, EasingData )
+				else
+					EasingHandler.Setter( self, Element, EasingData.End, EasingData )
+					Easings:Remove( Element )
+
+					if EasingData.Callback then
+						EasingData.Callback( Element )
+					end
+				end
+			end
+		end
+
+		if Easings:IsEmpty() then
+			self.EasingProcesses:Remove( EasingHandler )
+		end
+	end
+end
+
+local Easers = {
+	Fade = {
+		Easer = function( self, Element, EasingData, Progress )
+			SGUI.ColourLerp( EasingData.CurValue, EasingData.Start, Progress, EasingData.Diff )
+		end,
+		Setter = function( self, Element, Colour )
+			Element:SetColor( Colour )
+		end,
+		Getter = function( self, Element )
+			return Element:GetColor()
+		end
+	},
+	Alpha = {
+		Easer = function( self, Element, EasingData, Progress )
+			EasingData.CurValue = EasingData.Start + EasingData.Diff * Progress
+			EasingData.Colour.a = EasingData.CurValue
+		end,
+		Setter = function( self, Element, Alpha, EasingData )
+			Element:SetColor( EasingData.Colour )
+		end,
+		Getter = function( self, Element )
+			return Element:GetColor().a
+		end
+	},
+	Move = {
+		Easer = function( self, Element, EasingData, Progress )
+			local CurValue = EasingData.CurValue
+			local Start = EasingData.Start
+			local Diff = EasingData.Diff
+
+			CurValue.x = Start.x + Diff.x * Progress
+			CurValue.y = Start.y + Diff.y * Progress
+		end,
+		Setter = function( self, Element, Pos )
+			Element:SetPosition( Pos )
+			self.BaseClass.OnMouseMove( self, false )
+		end,
+		Getter = function( self, Element )
+			return Element:GetPosition()
+		end
+	},
+	Size = {
+		Setter = function( self, Element, Size )
+			if Element == self.Background then
+				self:SetSize( Size )
+			else
+				Element:SetSize( Size )
+			end
+		end,
+		Getter = function( self, Element )
+			return Element:GetSize()
+		end
+	}
+}
+Easers.Size.Easer = Easers.Move.Easer
+
+function ControlMeta:StopEasing( Element, EasingHandler )
+	if not self.EasingProcesses then return end
+
+	local Easers = self.EasingProcesses:Get( EasingHandler )
+	if not Easers then return end
+
+	Easers:Remove( Element or self.Background )
 end
 
 --[[
-	Processes a control's movement. Internally called.
-	Input: Current game time.
+	Sets an SGUI control to move from its current position.
+
+	Inputs:
+		1. Element to move, nil uses self.Background.
+		2. Starting position, nil uses current position.
+		3. Ending position.
+		4. Delay in seconds to wait before moving.
+		5. Duration of movement.
+		6. Callback function to run once movement is complete.
+		7. Easing function to use to perform movement, otherwise linear movement is used.
+		8. Power to pass to the easing function.
 ]]
-function ControlMeta:ProcessMove()
-	local MoveData = self.MoveData
+function ControlMeta:MoveTo( Element, Start, End, Delay, Duration, Callback, EaseFunc, Power )
+	local EasingData = self:EaseValue( Element, Start, End, Delay, Duration, Callback,
+		Easers.Move )
+	EasingData.EaseFunc = EaseFunc or math.EaseOut
+	EasingData.Power = Power or 3
 
-	local Duration = MoveData.Duration
-	local Progress = MoveData.Elapsed / Duration
+	return EasingData
+end
 
-	local LerpValue = MoveData.EaseFunc( Progress, MoveData.Power )
+function ControlMeta:StopMoving( Element )
+	self:StopEasing( Element, Easers.Move )
+end
 
-	local EndPos = MoveData.StartPos + LerpValue * MoveData.Dir
-
-	MoveData.Element:SetPosition( EndPos )
+local function AddEaseFunc( EasingData, EaseFunc, Power )
+	EasingData.EaseFunc = EaseFunc or math.EaseOut
+	EasingData.Power = Power or 3
 end
 
 --[[
@@ -967,43 +1229,28 @@ end
 		5. Duration of the fade.
 		6. Callback function to run once the fading has completed.
 ]]
-function ControlMeta:FadeTo( Element, Start, End, Delay, Duration, Callback )
-	self.Fades = self.Fades or Map()
+function ControlMeta:FadeTo( Element, Start, End, Delay, Duration, Callback, EaseFunc, Power )
+	local EasingData = self:EaseValue( Element, Start, End, Delay, Duration, Callback, Easers.Fade )
+	EasingData.EaseFunc = EaseFunc
+	EasingData.Power = Power
 
-	local Fade = self.Fades:Get( Element )
-	if not Fade then
-		self.Fades:Add( Element, {} )
-		Fade = self.Fades:Get( Element )
-	end
-
-	Fade.Obj = Element
-
-	Fade.Started = true
-	Fade.Finished = false
-
-	local Time = Clock()
-
-	local Diff = SGUI.ColourSub( End, Start )
-	local CurCol = SGUI.CopyColour( Start )
-
-	Fade.Diff = Diff
-	Fade.CurCol = CurCol
-
-	Fade.StartCol = Start
-	Fade.EndCol = End
-
-	Fade.StartTime = Time + Delay
-	Fade.Duration = Duration
-	Fade.Elapsed = 0
-	--Fade.EndTime = Time + Delay + Duration
-
-	Fade.Callback = Callback
+	return EasingData
 end
 
 function ControlMeta:StopFade( Element )
-	if not self.Fades then return end
+	self:StopEasing( Element, Easers.Fade )
+end
 
-	self.Fades:Remove( Element )
+function ControlMeta:AlphaTo( Element, Start, End, Delay, Duration, Callback, EaseFunc, Power )
+	local EasingData = self:EaseValue( Element, Start, End, Delay, Duration, Callback, Easers.Alpha )
+	EasingData.Colour = EasingData.Element:GetColor()
+	AddEaseFunc( EasingData, EaseFunc, Power )
+
+	return EasingData
+end
+
+function ControlMeta:StopAlpha( Element )
+	self:StopEasing( Element, Easers.Alpha )
 end
 
 --[[
@@ -1020,48 +1267,15 @@ end
 		8. Optional power to pass to the easing function.
 ]]
 function ControlMeta:SizeTo( Element, Start, End, Delay, Duration, Callback, EaseFunc, Power )
-	self.SizeAnims = self.SizeAnims or Map()
-	local Sizes = self.SizeAnims
+	local EasingData = self:EaseValue( Element, Start, End, Delay, Duration, Callback,
+		Easers.Size )
+	AddEaseFunc( EasingData, EaseFunc, Power )
 
-	local Size = Sizes:Get( Element )
-	if not Size then
-		self.SizeAnims:Add( Element, {} )
-		Size = self.SizeAnims:Get( Element )
-	end
-
-	Size.Obj = Element
-
-	Size.Started = true
-	Size.Finished = false
-
-	Size.EaseFunc = EaseFunc or math.EaseOut
-	Size.Power = Power or 3
-
-	local Time = Clock()
-
-	Start = Start or Element:GetSize()
-
-	local Diff = End - Start
-	local CurSize = Start
-
-	Size.Diff = Diff
-	Size.CurSize = Vector( CurSize.x, CurSize.y, 0 )
-
-	Size.Start = CurSize
-	Size.End = End
-
-	Size.StartTime = Time + Delay
-	Size.Duration = Duration
-	Size.Elapsed = 0
-	--Size.EndTime = Time + Delay + Duration
-
-	Size.Callback = Callback
+	return EasingData
 end
 
 function ControlMeta:StopResizing( Element )
-	if not self.SizeAnims then return end
-
-	self.SizeAnims:Remove( Element )
+	self:StopEasing( Element, Easers.Size )
 end
 
 --[[
@@ -1086,6 +1300,12 @@ function ControlMeta:SetHighlightOnMouseOver( Bool, Mult, TextureMode )
 	self.TextureHighlight = TextureMode
 end
 
+--[[
+	Sets up a tooltip for the given element.
+	This should work on any element without needing special code for it.
+
+	Input: Text value to display as a tooltip, pass in nil to remove the tooltip.
+]]
 function ControlMeta:SetTooltip( Text )
 	if Text == nil then
 		self.TooltipText = nil
@@ -1100,108 +1320,6 @@ function ControlMeta:SetTooltip( Text )
 
 	self.OnHover = self.ShowTooltip
 	self.OnLoseHover = self.HideTooltip
-end
-
-function ControlMeta:HandleMovement( Time, DeltaTime )
-	if not self.MoveData or self.MoveData.StartTime > Time or self.MoveData.Finished then
-		return
-	end
-
-	if self.MoveData.Elapsed <= self.MoveData.Duration then
-		self.MoveData.Elapsed = self.MoveData.Elapsed + DeltaTime
-
-		self:ProcessMove()
-	else
-		self.MoveData.Element:SetPosition( self.MoveData.NewPos )
-		if self.MoveData.Callback then
-			self.MoveData.Callback( self )
-		end
-
-		self.MoveData.Finished = true
-	end
-
-	--We call this to update highlighting if the control is moving and the mouse is not.
-	self.BaseClass.OnMouseMove( self, false )
-end
-
-function ControlMeta:HandleFading( Time, DeltaTime )
-	if not self.Fades or self.Fades:IsEmpty() then return end
-
-	for Element, Fade in self.Fades:Iterate() do
-		local Start = Fade.StartTime
-		local Duration = Fade.Duration
-
-		Fade.Elapsed = Fade.Elapsed + DeltaTime
-
-		local Elapsed = Fade.Elapsed
-
-		if Start <= Time then
-			if Elapsed <= Duration then
-				local Progress = Elapsed / Duration
-				local CurCol = Fade.CurCol
-
-				--Linear progress.
-				SGUI.ColourLerp( CurCol, Fade.StartCol, Progress, Fade.Diff )
-
-				Element:SetColor( CurCol )
-			elseif not Fade.Finished then
-				Element:SetColor( Fade.EndCol )
-
-				Fade.Finished = true
-
-				self.Fades:Remove( Element )
-
-				if Fade.Callback then
-					Fade.Callback( Element )
-				end
-			end
-		end
-	end
-end
-
-function ControlMeta:HandleResizing( Time, DeltaTime )
-	if not self.SizeAnims or self.SizeAnims:IsEmpty() then return end
-
-	for Element, Size in self.SizeAnims:Iterate() do
-		local Start = Size.StartTime
-		local Duration = Size.Duration
-
-		Size.Elapsed = Size.Elapsed + DeltaTime
-
-		local Elapsed = Size.Elapsed
-
-		if Start <= Time then
-			if Elapsed <= Duration then
-				local Progress = Elapsed / Duration
-				local CurSize = Size.CurSize
-
-				local LerpValue = Size.EaseFunc( Progress, Size.Power )
-
-				CurSize.x = Size.Start.x + LerpValue * Size.Diff.x
-				CurSize.y = Size.Start.y + LerpValue * Size.Diff.y
-
-				if Element == self.Background then
-					self:SetSize( CurSize )
-				else
-					Element:SetSize( CurSize )
-				end
-			elseif not Size.Finished then
-				if Element == self.Background then
-					self:SetSize( Size.End )
-				else
-					Element:SetSize( Size.End )
-				end
-
-				Size.Finished = true
-
-				self.SizeAnims:Remove( Element )
-
-				if Size.Callback then
-					Size.Callback( Element )
-				end
-			end
-		end
-	end
 end
 
 function ControlMeta:HandleHovering( Time )
@@ -1242,9 +1360,7 @@ end
 function ControlMeta:Think( DeltaTime )
 	local Time = Clock()
 
-	self:HandleMovement( Time, DeltaTime )
-	self:HandleFading( Time, DeltaTime )
-	self:HandleResizing( Time, DeltaTime )
+	self:HandleEasing( Time, DeltaTime )
 	self:HandleHovering( Time )
 end
 
@@ -1255,7 +1371,24 @@ function ControlMeta:ShowTooltip( X, Y )
 	Y = SelfPos.y + Y
 
 	local Tooltip = SGUI.IsValid( self.Tooltip ) and self.Tooltip or SGUI:Create( "Tooltip" )
-	Tooltip:SetText( self.TooltipText )
+
+	ScrW = ScrW or Client.GetScreenWidth
+	ScrH = ScrH or Client.GetScreenHeight
+
+	local W = ScrW()
+	local Font
+	local TextScale
+
+	if W <= 1366 then
+		Font = Fonts.kAgencyFB_Tiny
+	elseif W > 1920 and W <= 2880 then
+		Font = Fonts.kAgencyFB_Medium
+	elseif W > 2880 then
+		Font = Fonts.kAgencyFB_Huge
+		TextScale = Vector( 0.5, 0.5, 0 )
+	end
+
+	Tooltip:SetText( self.TooltipText, Font, TextScale )
 
 	Y = Y - Tooltip:GetSize().y - 4
 
@@ -1273,6 +1406,40 @@ function ControlMeta:HideTooltip()
 	end )
 end
 
+function ControlMeta:SetHighlighted( Highlighted, SkipAnim )
+	if Highlighted == self.Highlighted then return end
+
+	if Highlighted then
+		self.Highlighted = true
+
+		if not self.TextureHighlight then
+			if SkipAnim then
+				self.Background:SetColor( self.ActiveCol )
+				return
+			end
+
+			self:FadeTo( self.Background, self.InactiveCol, self.ActiveCol,
+				0, 0.1 )
+		else
+			self.Background:SetTexture( self.HighlightTexture )
+		end
+	else
+		self.Highlighted = false
+
+		if not self.TextureHighlight then
+			if SkipAnim then
+				self.Background:SetColor( self.InactiveCol )
+				return
+			end
+
+			self:FadeTo( self.Background, self.ActiveCol, self.InactiveCol,
+				0, 0.1 )
+		else
+			self.Background:SetTexture( self.Texture )
+		end
+	end
+end
+
 function ControlMeta:OnMouseMove( Down )
 	--Basic highlight on mouse over handling.
 	if not self.HighlightOnMouseOver then
@@ -1280,52 +1447,34 @@ function ControlMeta:OnMouseMove( Down )
 	end
 
 	if self:MouseIn( self.Background, self.HighlightMult ) then
-		if not self.Highlighted then
-			self.Highlighted = true
-
-			if not self.TextureHighlight then
-				self:FadeTo( self.Background, self.InactiveCol,
-				self.ActiveCol, 0, 0.1, function( Background )
-					Background:SetColor( self.ActiveCol )
-				end )
-			else
-				self.Background:SetTexture( self.HighlightTexture )
-			end
-		end
+		self:SetHighlighted( true )
 	else
 		if self.Highlighted and not self.ForceHighlight then
-			self.Highlighted = false
-
-			if not self.TextureHighlight then
-				self:FadeTo( self.Background, self.ActiveCol,
-				self.InactiveCol, 0, 0.1, function( Background )
-					Background:SetColor( self.InactiveCol )
-				end )
-			else
-				self.Background:SetTexture( self.Texture )
-			end
+			self:SetHighlighted( false )
 		end
 	end
 end
 
 --[[
-	Requests focus, for text entry controls.
+	Requests focus, for controls with keyboard input.
 ]]
 function ControlMeta:RequestFocus()
+	if not self.UsesKeyboardFocus then return end
+
 	SGUI.FocusedControl = self
 
 	NotifyFocusChange( self )
 end
 
 --[[
-	Returns whether the current control has focus.
+	Returns whether the current control has keyboard focus.
 ]]
 function ControlMeta:HasFocus()
 	return SGUI.FocusedControl == self
 end
 
 --[[
-	Drops focus on the given element.
+	Drops keyboard focus on the given element.
 ]]
 function ControlMeta:LoseFocus()
 	if not self:HasFocus() then return end

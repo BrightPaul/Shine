@@ -35,6 +35,22 @@ Plugin.Conflicts = {
 Plugin.CountdownTimer = "Countdown"
 Plugin.FiveSecondTimer = "5SecondCount"
 
+function Plugin:StoreConfigSettings()
+	self.OriginalServerConfig = {
+		AutoBalance = Server.GetConfigSetting( "auto_team_balance" ),
+		EndOnTeamUnbalance = Server.GetConfigSetting( "end_round_on_team_unbalance" ),
+		ForceEvenTeamsOnJoin = Server.GetConfigSetting( "force_even_teams_on_join" )
+	}
+end
+
+function Plugin:RestoreConfigSettings()
+	if not self.OriginalServerConfig then return end
+
+	Server.SetConfigSetting( "auto_team_balance", self.OriginalServerConfig.AutoBalance )
+	Server.SetConfigSetting( "end_round_on_team_unbalance", self.OriginalServerConfig.EndOnTeamUnbalance )
+	Server.SetConfigSetting( "force_even_teams_on_join", self.OriginalServerConfig.ForceEvenTeamsOnJoin )
+end
+
 function Plugin:Initialise()
 	local Gamemode = Shine.GetGamemode()
 
@@ -61,20 +77,22 @@ function Plugin:Initialise()
 
 	--We've been reactivated, we can disable autobalance here and now.
 	if self.Enabled ~= nil then
+		self:StoreConfigSettings()
+
 		Server.SetConfigSetting( "auto_team_balance", false )
 		Server.SetConfigSetting( "end_round_on_team_unbalance", false )
 		Server.SetConfigSetting( "force_even_teams_on_join", false )
 	end
 
 	self:CreateCommands()
-	
+
 	self.Enabled = true
 
 	return true
 end
 
 function Plugin:Notify( Positive, Player, Message, Format, ... )
-	Shine:NotifyDualColour( Player, Positive and 0 or 255, Positive and 255 or 0, 0, 
+	Shine:NotifyDualColour( Player, Positive and 0 or 255, Positive and 255 or 0, 0,
 		"[TournamentMode]", 255, 255, 255, Message, Format, ... )
 end
 
@@ -89,7 +107,7 @@ function Plugin:EndGame( Gamerules, WinningTeam )
 	--Record the winner, and network it.
 	if WinningTeam == Gamerules.team1 or WinningTeam == 1 then
 		self.TeamScores[ 1 ] = self.TeamScores[ 1 ] + 1
-	
+
 		self.dt.MarineScore = self.TeamScores[ 1 ]
 	elseif WinningTeam == Gamerules.team2 or WinningTeam == 2 then
 		self.TeamScores[ 2 ] = self.TeamScores[ 2 ] + 1
@@ -104,7 +122,7 @@ local NextStartNag = 0
 
 function Plugin:CheckGameStart( Gamerules )
 	local State = Gamerules:GetGameState()
-	
+
 	if State == kGameState.PreGame or State == kGameState.NotStarted then
 		self.GameStarted = false
 
@@ -132,7 +150,7 @@ function Plugin:GetStartNag()
 	local AliensReady = self.ReadyStates[ 2 ]
 
 	if MarinesReady and AliensReady then return nil end
-	
+
 	if MarinesReady and not AliensReady then
 		return StringFormat( "Waiting on %s to start", self:GetTeamName( 2 ) )
 	elseif AliensReady and not MarinesReady then
@@ -181,7 +199,7 @@ function Plugin:StartGame( Gamerules )
 
 	for i = 1, Count do
 		local Player = Players[ i ]
-		
+
 		if Player.ResetScores then
 			Player:ResetScores()
 		end
@@ -201,7 +219,7 @@ end
 ]]
 function Plugin:ClientConfirmConnect( Client )
 	if not self.DisabledAutobalance then
-		self.OldTeamBalanceSetting = Server.GetConfigSetting( "auto_team_balance" )
+		self:StoreConfigSettings()
 
 		Server.SetConfigSetting( "auto_team_balance", false )
 		Server.SetConfigSetting( "end_round_on_team_unbalance", false )
@@ -209,7 +227,7 @@ function Plugin:ClientConfirmConnect( Client )
 
 		self.DisabledAutobalance = true
 	end
-	
+
 	if Client:GetIsVirtual() then return end
 
 	local ID = Client:GetUserId()
@@ -217,7 +235,7 @@ function Plugin:ClientConfirmConnect( Client )
 	if self.Config.ForceTeams then
 		if self.TeamMembers[ ID ] then
 			Gamerules:JoinTeam( Client:GetControllingPlayer(), self.TeamMembers[ ID ],
-				nil, true )     
+				nil, true )
 		end
 	end
 end
@@ -266,7 +284,7 @@ end
 ]]
 function Plugin:PostJoinTeam( Gamerules, Player, OldTeam, NewTeam, Force )
 	if NewTeam == 0 or NewTeam == 3 then return end
-	
+
 	local Client = Server.GetOwner( Player )
 
 	if not Client then return end
@@ -295,13 +313,27 @@ function Plugin:CheckStart()
 
 		local GameStartTime = string.TimeToString( CountdownTime )
 
-		Shine:SendText( nil, Shine.BuildScreenMessage( 2, 0.5, 0.7,
-			"Game starts in "..GameStartTime, 5, 255, 255, 255, 1, 3, 1 ) )
+		Shine.ScreenText.Add( 2, {
+			X = 0.5, Y = 0.7,
+			Text = "Game starts in "..GameStartTime,
+			Duration = 5,
+			R = 255, G = 255, B = 255,
+			Alignment = 1,
+			Size = 3,
+			FadeIn = 1
+		} )
 
 		--Game starts in 5 seconds!
 		self:CreateTimer( self.FiveSecondTimer, CountdownTime - 5, 1, function()
-			Shine:SendText( nil, Shine.BuildScreenMessage( 2, 0.5, 0.7,
-				"Game starts in %s", 5, 255, 0, 0, 1, 3, 0 ) )
+			Shine.ScreenText.Add( 2, {
+				X = 0.5, Y = 0.7,
+				Text = "Game starts in %s",
+				Duration = 5,
+				R = 255, G = 0, B = 0,
+				Alignment = 1,
+				Size = 3,
+				FadeIn = 0
+			} )
 		end )
 
 		--If we get this far, then we can start.
@@ -318,7 +350,7 @@ function Plugin:CheckStart()
 		self:DestroyTimer( self.CountdownTimer )
 
 		--Remove the countdown text.
-		Shine:RemoveText( nil, { ID = 2 } )
+		Shine.ScreenText.End( 2 )
 
 		self:Notify( false, nil, "Game start aborted." )
 	end
@@ -332,20 +364,55 @@ function Plugin:GetOppositeTeam( Team )
 	return Team == 1 and 2 or 1
 end
 
+function Plugin:ReadyTeam( Team )
+	self.ReadyStates[ Team ] = true
+
+	local TeamName = self:GetTeamName( Team )
+
+	local OtherTeam = self:GetOppositeTeam( Team )
+	local OtherReady = self:GetReadyState( OtherTeam )
+
+	if OtherReady then
+		self:Notify( true, nil, "%s is now ready.", true, TeamName )
+	else
+		self:Notify( true, nil, "%s is now ready. Waiting on %s to start.",
+			true, TeamName, self:GetTeamName( OtherTeam ) )
+	end
+
+	self:CheckStart()
+end
+
+function Plugin:UnReadyTeam( Team, Notify )
+	if self.ReadyStates[ Team ] then
+		self.ReadyStates[ Team ] = false
+	end
+
+	if Notify then
+		local TeamName = self:GetTeamName( Team )
+		self:Notify( false, nil, "%s is no longer ready.", true, TeamName )
+	end
+
+	self:CheckStart()
+end
+
 function Plugin:CreateCommands()
-	local function ReadyUp( Client )
-		if self.GameStarted then return end
-
+	local function IsPlayingClient( Client )
 		local Player = Client:GetControllingPlayer()
+		if not Player then return false end
 
-		if not Player then return end
-		
 		local Team = Player:GetTeamNumber()
+		if Team ~= 1 and Team ~= 2 then return false end
 
-		if Team ~= 1 and Team ~= 2 then return end
+		return true, Player, Team
+	end
+
+	local function Unready( Client )
+		if self.GameStarted then return end
+		local Valid, Player, Team = IsPlayingClient( Client )
+		if not Valid then return end
 
 		if not Player:isa( "Commander" ) and not self.Config.EveryoneReady then
-			Shine:NotifyError( Client, "Only the commander can ready up the team." )
+			Shine:NotifyCommandError( Client, "Only the commander can unready the team." )
 
 			return
 		end
@@ -353,9 +420,9 @@ function Plugin:CreateCommands()
 		local Time = Shared.GetTime()
 
 		if self.Config.EveryoneReady then
-			if self.ReadiedPlayers[ Client ] then
-				Shine:NotifyError( Client,
-					"You are already ready! Use !unready to unready yourself." )
+			if not self.ReadiedPlayers[ Client ] then
+				Shine:NotifyCommandError( Client,
+					"You haven't readied yet! Use !ready to ready yourself." )
 
 				return
 			end
@@ -364,7 +431,61 @@ function Plugin:CreateCommands()
 			if NextReady > Time then return end
 
 			self.NextReady[ Client ] = Time + 5
+			self.ReadiedPlayers[ Client ] = false
 
+			local TeamWasReady = self.ReadyStates[ Team ]
+			if TeamWasReady then
+				self:Notify( false, nil, "%s is no longer ready as %s unreadied.",
+					true, self:GetTeamName( Team ), Player:GetName() )
+			else
+				self:Notify( false, nil, "%s is no longer ready.", true, Player:GetName() )
+			end
+
+			self:UnReadyTeam( Team )
+
+			return
+		end
+
+		local NextReady = self.NextReady[ Team ] or 0
+
+		if self.ReadyStates[ Team ] then
+			if NextReady > Time then return end
+
+			--Add a delay to prevent ready->unready spam.
+			self.NextReady[ Team ] = Time + 5
+			self:UnReadyTeam( Team )
+		else
+			Shine:NotifyCommandError( Client,
+				"Your team has not readied yet! Use !ready to ready your team." )
+		end
+	end
+	local UnReadyCommand = self:BindCommand( "sh_unready", { "unrdy", "unready" }, Unready, true )
+	UnReadyCommand:Help( "Makes your team not ready to start the game." )
+
+	local function ReadyUp( Client )
+		if self.GameStarted then return end
+		local Valid, Player, Team = IsPlayingClient( Client )
+		if not Valid then return end
+
+		if not Player:isa( "Commander" ) and not self.Config.EveryoneReady then
+			Shine:NotifyCommandError( Client, "Only the commander can ready up the team." )
+
+			return
+		end
+
+		local Time = Shared.GetTime()
+
+		if self.Config.EveryoneReady then
+			if self.ReadiedPlayers[ Client ] then
+				Unready( Client )
+
+				return
+			end
+
+			local NextReady = self.NextReady[ Client ] or 0
+			if NextReady > Time then return end
+
+			self.NextReady[ Client ] = Time + 5
 			self.ReadiedPlayers[ Client ] = true
 
 			self:Notify( true, nil, "%s is ready.", true, Player:GetName() )
@@ -380,22 +501,8 @@ function Plugin:CreateCommands()
 			end
 
 			if not Ready then return end
-			
-			self.ReadyStates[ Team ] = true
 
-			local TeamName = self:GetTeamName( Team )
-
-			local OtherTeam = self:GetOppositeTeam( Team )
-			local OtherReady = self:GetReadyState( OtherTeam )
-
-			if OtherReady then
-				self:Notify( true, nil, "%s is now ready.", true, TeamName )
-			else
-				self:Notify( true, nil, "%s is now ready. Waiting on %s to start.",
-					true, TeamName, self:GetTeamName( OtherTeam ) )
-			end
-
-			self:CheckStart()
+			self:ReadyTeam( Team )
 
 			return
 		end
@@ -405,99 +512,15 @@ function Plugin:CreateCommands()
 		if not self.ReadyStates[ Team ] then
 			if NextReady > Time then return end
 
-			self.ReadyStates[ Team ] = true
-
-			local TeamName = self:GetTeamName( Team )
-
-			local OtherTeam = self:GetOppositeTeam( Team )
-			local OtherReady = self:GetReadyState( OtherTeam )
-
-			if OtherReady then
-				self:Notify( true, nil, "%s is now ready.", true, TeamName )
-			else
-				self:Notify( true, nil, "%s is now ready. Waiting on %s to start.",
-					true, TeamName, self:GetTeamName( OtherTeam ) )
-			end
-			
 			--Add a delay to prevent ready->unready spam.
 			self.NextReady[ Team ] = Time + 5
-
-			self:CheckStart()
+			self:ReadyTeam( Team )
 		else
-			Shine:NotifyError( Client,
-				"Your team is already ready! Use !unready to unready your team." )
+			Unready( Client )
 		end
 	end
 	local ReadyCommand = self:BindCommand( "sh_ready", { "rdy", "ready" }, ReadyUp, true )
 	ReadyCommand:Help( "Makes your team ready to start the game." )
-	
-	local function Unready( Client )
-		if self.GameStarted then return end
-
-		local Player = Client:GetControllingPlayer()
-
-		if not Player then return end
-		
-		local Team = Player:GetTeamNumber()
-
-		if Team ~= 1 and Team ~= 2 then return end
-
-		if not Player:isa( "Commander" ) and not self.Config.EveryoneReady then
-			Shine:NotifyError( Client, "Only the commander can ready up the team." )
-
-			return
-		end
-
-		local Time = Shared.GetTime()
-
-		if self.Config.EveryoneReady then
-			if not self.ReadiedPlayers[ Client ] then
-				Shine:NotifyError( Client,
-					"You haven't readied yet! Use !ready to ready yourself." )
-
-				return
-			end
-
-			local NextReady = self.NextReady[ Client ] or 0
-			if NextReady > Time then return end
-
-			self.NextReady[ Client ] = Time + 5
-
-			self.ReadiedPlayers[ Client ] = false
-
-			self:Notify( false, nil, "%s is no longer ready.", true, Player:GetName() )
-
-			if self.ReadyStates[ Team ] then
-				self.ReadyStates[ Team ] = false
-			end
-
-			self:CheckStart()
-
-			return
-		end
-
-		local NextReady = self.NextReady[ Team ] or 0
-
-		if self.ReadyStates[ Team ] then
-			if NextReady > Time then return end
-
-			self.ReadyStates[ Team ] = false
-
-			local TeamName = self:GetTeamName( Team )
-
-			self:Notify( false, nil, "%s is no longer ready.", true, TeamName )
-
-			--Add a delay to prevent ready->unready spam.
-			self.NextReady[ Team ] = Time + 5
-
-			self:CheckStart()
-		else
-			Shine:NotifyError( Client,
-				"Your team has not readied yet! Use !ready to ready your team." )
-		end
-	end
-	local UnReadyCommand = self:BindCommand( "sh_unready", { "unrdy", "unready" }, Unready, true )
-	UnReadyCommand:Help( "Makes your team not ready to start the game." )
 
 	local function SetTeamNames( Client, Marine, Alien )
 		self.TeamNames[ 1 ] = Marine
@@ -533,11 +556,10 @@ function Plugin:Cleanup()
 	self.ReadyStates = nil
 	self.TeamNames = nil
 
-	if Server.SetConfigSetting then
-		Server.SetConfigSetting( "auto_team_balance", self.OldTeamBalanceSetting or {} )
-		Server.SetConfigSetting( "end_round_on_team_unbalance", true )
-		Server.SetConfigSetting( "force_even_teams_on_join", true )
-	end
+	self:RestoreConfigSettings()
+end
 
-	self.Enabled = false
+--Restore config settings on map change, in case this plugin is disabled on the next map.
+function Plugin:MapChange()
+	self:RestoreConfigSettings()
 end

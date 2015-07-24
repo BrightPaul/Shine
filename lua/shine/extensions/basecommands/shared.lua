@@ -13,6 +13,7 @@ function Plugin:SetupDataTable()
 
 	self:AddNetworkMessage( "RequestPluginData", {}, "Server" )
 	self:AddNetworkMessage( "PluginData", { Name = "string (32)", Enabled = "boolean" }, "Client" )
+	self:AddNetworkMessage( "PluginTabAuthed", {}, "Client" )
 end
 
 function Plugin:NetworkUpdate( Key, Old, New )
@@ -44,7 +45,42 @@ end
 
 Shine:RegisterExtension( "basecommands", Plugin )
 
-if Server then return end
+if Server then
+	local function RegisterCustomVote()
+		RegisterVoteType( "ShineCustomVote", { VoteQuestion = "string (64)" } )
+
+		SetVoteSuccessfulCallback( "ShineCustomVote", 4, function( Data )
+			Plugin:OnCustomVoteSuccess( Data )
+		end )
+	end
+
+	if RegisterVoteType then
+		RegisterCustomVote()
+		return
+	end
+
+	Shine.Hook.Add( "PostLoadScript", "SetupCustomVote", function( Script )
+		if Script ~= "lua/Voting.lua" then return end
+
+		RegisterCustomVote()
+	end )
+
+	return
+end
+
+Shine.Hook.Add( "PostLoadScript", "SetupCustomVote", function( Script )
+	if Script ~= "lua/Voting.lua" then return end
+
+	Shine.Hook.Remove( "PostLoadScript", "SetupCustomVote" )
+
+	RegisterVoteType( "ShineCustomVote", { VoteQuestion = "string (64)" } )
+
+	AddVoteSetupCallback( function( VoteMenu )
+		AddVoteStartListener( "ShineCustomVote", function( Data )
+			return Data.VoteQuestion
+		end )
+	end )
+end )
 
 local Shine = Shine
 local Hook = Shine.Hook
@@ -125,9 +161,7 @@ function Plugin:SetupAdminMenuCommands()
 				end
 			end
 
-			if Data and Data.SortedColumn then
-				List:SortRows( Data.SortedColumn, nil, Data.Descending )
-			else
+			if not Shine.AdminMenu.RestoreListState( List, Data ) then
 				List:SortRows( 1 )
 			end
 
@@ -162,15 +196,10 @@ function Plugin:SetupAdminMenuCommands()
 		end,
 
 		OnCleanup = function( Panel )
-			local SortColumn = self.MapList.SortedColumn
-			local Descending = self.MapList.Descending
-
+			local MapList = self.MapList
 			self.MapList = nil
 
-			return {
-				SortedColumn = SortColumn,
-				Descending = Descending
-			}
+			return Shine.AdminMenu.GetListState( MapList )
 		end
 	} )
 
@@ -190,28 +219,14 @@ function Plugin:SetupAdminMenuCommands()
 			--We need information about the server side only plugins too.
 			if not self.PluginData then
 				self:RequestPluginData()
+				self.PluginData = {}
 			end
 
-			for Plugin in pairs( Shine.AllPlugins ) do
-				local Enabled, PluginTable = Shine:IsExtensionEnabled( Plugin )
-				local Skip
-				--Server side plugin.
-				if not PluginTable then
-					Enabled = self.PluginData and self.PluginData[ Plugin ]
-				elseif PluginTable.IsClient and not PluginTable.IsShared then
-					Skip = true
-				end
-
-				if not Skip then
-					local Row = List:AddRow( Plugin, Enabled and "Enabled" or "Disabled" )
-
-					self.PluginRows[ Plugin ] = Row
-				end
+			if self.PluginAuthed then
+				self:PopulatePluginList()
 			end
 
-			if Data and Data.SortedColumn then
-				List:SortRows( Data.SortedColumn, nil, Data.Descending )
-			else
+			if not Shine.AdminMenu.RestoreListState( List, Data ) then
 				List:SortRows( 1 )
 			end
 
@@ -221,7 +236,7 @@ function Plugin:SetupAdminMenuCommands()
 				local Selected = List:GetSelectedRow()
 				if not Selected then return end
 
-				return Selected:GetColumnText( 1 )
+				return Selected:GetColumnText( 1 ), Selected:GetColumnText( 2 ) == "Enabled"
 			end
 
 			local UnloadPlugin = SGUI:Create( "Button", Panel )
@@ -231,8 +246,9 @@ function Plugin:SetupAdminMenuCommands()
 			UnloadPlugin:SetText( "Unload Plugin" )
 			UnloadPlugin:SetFont( Fonts.kAgencyFB_Small )
 			function UnloadPlugin:DoClick()
-				local Plugin = GetSelectedPlugin()
+				local Plugin, Enabled = GetSelectedPlugin()
 				if not Plugin then return false end
+				if not Enabled then return false end
 
 				local Menu = self:AddMenu()
 
@@ -324,15 +340,13 @@ function Plugin:SetupAdminMenuCommands()
 
 			TableEmpty( self.PluginRows )
 
+			local PluginList = self.PluginList
 			self.PluginList = nil
 
 			Hook.Remove( "OnPluginLoad", "AdminMenu_OnPluginLoad" )
 			Hook.Remove( "OnPluginUnload", "AdminMenu_OnPluginUnload" )
 
-			return {
-				SortedColumn = SortColumn,
-				Descending = Descending
-			}
+			return Shine.AdminMenu.GetListState( PluginList )
 		end
 	} )
 end
@@ -357,9 +371,35 @@ function Plugin:RequestPluginData()
 	self:SendNetworkMessage( "RequestPluginData", {}, true )
 end
 
+function Plugin:ReceivePluginTabAuthed()
+	self.PluginAuthed = true
+	self:PopulatePluginList()
+end
+
+function Plugin:PopulatePluginList()
+	local List = self.PluginList
+	if not SGUI.IsValid( List ) then return end
+
+	for Plugin in pairs( Shine.AllPlugins ) do
+		local Enabled, PluginTable = Shine:IsExtensionEnabled( Plugin )
+		local Skip
+		--Server side plugin.
+		if not PluginTable then
+			Enabled = self.PluginData and self.PluginData[ Plugin ]
+		elseif PluginTable.IsClient and not PluginTable.IsShared then
+			Skip = true
+		end
+
+		if not Skip then
+			local Row = List:AddRow( Plugin, Enabled and "Enabled" or "Disabled" )
+
+			self.PluginRows[ Plugin ] = Row
+		end
+	end
+end
+
 function Plugin:ReceivePluginData( Data )
 	self.PluginData = self.PluginData or {}
-
 	self.PluginData[ Data.Name ] = Data.Enabled
 
 	local Row = self.PluginRows[ Data.Name ]
@@ -388,9 +428,15 @@ function Plugin:UpdateAllTalk( State )
 	if not self.TextObj then
 		local GB = State > NOT_STARTED and 0 or 255
 
-		--A bit of a hack, but the whole screen text stuff is in dire need of a replacement...
-		self.TextObj = Shine:AddMessageToQueue( -1, 0.5, 0.95,
-			StringFormat( "All talk is %s", Enabled ), -2, 255, GB, GB, 1, 2, 1, true )
+		self.TextObj = Shine.ScreenText.Add( "AllTalkState", {
+			X = 0.5, Y = 0.95,
+			Text = StringFormat( "All talk is %s", Enabled ),
+			R = 255, G = GB, B = GB,
+			Alignment = 1,
+			Size = 2,
+			FadeIn = 1,
+			IgnoreFormat = true
+		} )
 
 		return
 	end
@@ -399,16 +445,13 @@ function Plugin:UpdateAllTalk( State )
 
 	local Col = State > NOT_STARTED and Color( 255, 0, 0 ) or Color( 255, 255, 255 )
 
-	self.TextObj.Colour = Col
-	self.TextObj.Obj:SetColor( Col )
+	self.TextObj:SetColour( Col )
 end
 
 function Plugin:RemoveAllTalkText()
 	if not self.TextObj then return end
 
-	self.TextObj.LastUpdate = Shared.GetTime() - 1
-	self.TextObj.Duration = 1
-
+	self.TextObj:End()
 	self.TextObj = nil
 end
 

@@ -39,6 +39,16 @@ function Scrollbar:Initialise()
 	self.ScrollSize = 1
 end
 
+function Scrollbar:GetNormalAlpha( Element )
+	local Skin = SGUI:GetSkin()
+
+	if Element == self.Background then
+		return Skin.ScrollbarBackground.a
+	end
+
+	return Skin.Scrollbar.a
+end
+
 function Scrollbar:OnSchemeChange( Skin )
 	self.Background:SetColor( Skin.ScrollbarBackground )
 	self.Bar:SetColor( Skin.Scrollbar )
@@ -58,6 +68,9 @@ function Scrollbar:SetSize( Size )
 end
 
 function Scrollbar:SetScrollSize( Size )
+	local OldPos = self.Pos or 0
+	local OldDiff = self.Size.y - self.ScrollSizeVec.y
+
 	self.ScrollSize = Size
 
 	if self.ScrollSizeVec then
@@ -67,6 +80,12 @@ function Scrollbar:SetScrollSize( Size )
 	end
 
 	self.Bar:SetSize( self.ScrollSizeVec )
+
+	local NewDiff = self.Size.y - self.ScrollSizeVec.y
+	--If the scrolling size has shrunk, we may need to move up.
+	if NewDiff < OldDiff then
+		self:SetScroll( OldPos )
+	end
 end
 
 --[[
@@ -117,7 +136,7 @@ function Scrollbar:OnMouseDown( Key, DoubleClick )
 	GetCursorPos = GetCursorPos or Client.GetCursorPosScreen
 
 	local X, Y = GetCursorPos()
-	
+
 	self.Scrolling = true
 
 	self.StartingPos = self.Pos
@@ -128,11 +147,15 @@ function Scrollbar:OnMouseDown( Key, DoubleClick )
 	return true, self
 end
 
+SGUI.AddProperty( Scrollbar, "MouseWheelScroll" )
+
 function Scrollbar:OnMouseWheel( Down )
 	local Parent = self.Parent
 
 	if self:MouseIn( self.Background ) or Parent:MouseIn( Parent.Background ) then
-		self:SetScroll( self.Pos + ( Down and -32 or 32 ) * self.ScrollSize, true )
+		local ScrollMagnitude = self.MouseWheelScroll or 32
+
+		self:SetScroll( self.Pos + ( Down and -ScrollMagnitude or ScrollMagnitude ) * self.ScrollSize, true )
 
 		return true
 	end
@@ -140,7 +163,7 @@ end
 
 function Scrollbar:OnMouseUp( Key )
 	if Key ~= InputKey.MouseButton0 then return end
-	
+
 	self.Scrolling = false
 
 	self.Bar:SetColor( self.InactiveCol )
@@ -151,7 +174,7 @@ end
 function Scrollbar:OnMouseMove( Down )
 	if not Down then return end
 	if not self.Scrolling then return end
-	
+
 	local X, Y = GetCursorPos()
 
 	local Diff = Y - self.StartingY

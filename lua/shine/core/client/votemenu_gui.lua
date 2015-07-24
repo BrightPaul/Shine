@@ -7,9 +7,11 @@ local Shine = Shine
 
 local Hook = Shine.Hook
 local SGUI = Shine.GUI
+local IsType = Shine.IsType
 
 local Ceil = math.ceil
 local Cos = math.cos
+local Max = math.max
 local Pi = math.pi
 
 local VoteMenu = {}
@@ -104,7 +106,42 @@ local ClickFuncs = {
 function VoteMenu:Create()
 	self.TeamType = PlayerUI_GetTeamType()
 
-	local BackSize = GUIScale( MenuSize )
+	local ScreenWidth = Client.GetScreenWidth()
+	local ScreenHeight = Client.GetScreenHeight()
+
+	local WidthMult = Max( ScreenWidth / 1920, 1 )
+	local HeightMult = Max( ScreenHeight / 1080, 1 )
+
+	local function Scale( Value )
+		local Scale
+		if ScreenWidth > 2880 then
+			Scale =  SGUI.TenEightyPScale( Value )
+		else
+			Scale = GUIScale( Value )
+		end
+
+		if IsType( Scale, "number" ) then
+			return Scale * WidthMult
+		end
+
+		Scale.x = Scale.x * WidthMult
+		Scale.y = Scale.y * HeightMult
+
+		return Scale
+	end
+
+	local BackSize = Scale( MenuSize )
+
+	if ScreenWidth <= 1920 then
+		self.Font = FontName
+		self.TextScale = Scale( FontScale )
+	elseif ScreenWidth <= 2880 then
+		self.Font = Fonts.kAgencyFB_Medium
+		self.TextScale = FontScale
+	else
+		self.Font = Fonts.kAgencyFB_Huge
+		self.TextScale = FontScale * 0.6
+	end
 
 	local Background = SGUI:Create( "Panel" )
 	Background:SetAnchor( GUIItem.Middle, GUIItem.Center )
@@ -120,10 +157,9 @@ function VoteMenu:Create()
 
 	self.ButtonIndex = 0
 
-	self.TextScale = GUIScale( 1 ) * FontScale
-	self.ButtonSize = GUIScale( ButtonSize )
-	self.ButtonClipping = GUIScale( ButtonClipping )
-	self.MaxButtonOffset = GUIScale( MaxButtonOffset )
+	self.ButtonSize = Scale( ButtonSize )
+	self.ButtonClipping = Scale( ButtonClipping )
+	self.MaxButtonOffset = Scale( MaxButtonOffset )
 
 	self:SetPage( self.ActivePage or "Main" )
 
@@ -387,7 +423,7 @@ local function AddButton( self, Pos, Anchor, Text, DoClick )
 		Texture = ButtonTexture[ self.TeamType or PlayerUI_GetTeamType() ],
 		HighlightTexture = ButtonHighlightTexture[ self.TeamType or PlayerUI_GetTeamType() ],
 		Text = Text,
-		Font = FontName,
+		Font = self.Font,
 		TextScale = self.TextScale,
 		TextColour = TextCol,
 		DoClick = DoClick,
@@ -408,7 +444,7 @@ local function HandleButton( Button, Text, DoClick, StartPos, EndPos )
 
 	if Shine.Config.AnimateUI then
 		Button:SetPos( StartPos )
-		Button:MoveTo( EndPos, 0, EasingTime )
+		Button:MoveTo( nil, nil, EndPos, 0, EasingTime )
 	else
 		Button:SetPos( EndPos )
 	end
@@ -437,7 +473,7 @@ function VoteMenu:AddTopButton( Text, DoClick )
 	Buttons.Top = TopButton
 
 	if Shine.Config.AnimateUI then
-		TopButton:MoveTo( EndPos, 0, EasingTime )
+		TopButton:MoveTo( nil, nil, EndPos, 0, EasingTime )
 	end
 
 	return TopButton
@@ -466,7 +502,7 @@ function VoteMenu:AddBottomButton( Text, DoClick )
 	Buttons.Bottom = BottomButton
 
 	if Shine.Config.AnimateUI then
-		BottomButton:MoveTo( EndPos, 0, EasingTime )
+		BottomButton:MoveTo( nil, nil, EndPos, 0, EasingTime )
 	end
 
 	return BottomButton
@@ -529,7 +565,7 @@ function VoteMenu:PositionButton( Button, Index, MaxIndex, Align, IgnoreAnim )
 		local Size = self.Background:GetSize()
 		Button:SetPos( Vector( Align == GUIItem.Right and -Size.x * 0.5 or 0,
 			Size.y * 0.5, 0 ) )
-		Button:MoveTo( Pos, 0, EasingTime )
+		Button:MoveTo( nil, nil, Pos, 0, EasingTime )
 	else
 		Button:SetPos( Pos )
 	end

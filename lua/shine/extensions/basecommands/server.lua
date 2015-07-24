@@ -69,7 +69,7 @@ Hook.Add( "NS2EventHook", "BaseCommandsOverrides", function( Name, OldFunc )
 	if Name == "Console_sv_say" then
 		local function NewSay( Client, ... )
 			if Shine:IsExtensionEnabled( "basecommands" ) then
-				return Shine:RunCommand( Client, "sh_say", ... )
+				return Shine:RunCommand( Client, "sh_say", false, ... )
 			end
 
 			return OldFunc( Client, ... )
@@ -252,7 +252,7 @@ local function NotifyError( Client, Message, Format, ... )
 		return
 	end
 
-	Shine:NotifyError( Client, Message, Format, ... )
+	Shine:NotifyCommandError( Client, Message, Format, ... )
 end
 
 local Histories = {}
@@ -345,7 +345,7 @@ local function Help( Client, Search )
 					and StringFormat( " (chat: !%s)", Command.ChatCmd ) or ""
 
 				local HelpLine = StringFormat( "%s. %s%s: %s", i, CommandName,
-					ChatCommand, Command.Help or "No help available." )
+					ChatCommand, Command.HelpString or "No help available." )
 
 				PrintToConsole( Client, HelpLine )
 			end
@@ -822,7 +822,10 @@ function Plugin:CreateCommands()
 		local TargetCount = #Targets
 
 		for i = 1, TargetCount do
-			Gamerules:JoinTeam( Targets[ i ]:GetControllingPlayer(), kTeamReadyRoom, nil, true )
+			local Player = Targets[ i ]:GetControllingPlayer()
+			if Player then
+				Gamerules:JoinTeam( Player, kTeamReadyRoom, nil, true )
+			end
 		end
 
 		if TargetCount > 0 then
@@ -1056,8 +1059,15 @@ function Plugin:CreateCommands()
 			Colour = Colours.white
 		end
 
-		Shine:SendText( nil, Shine.BuildScreenMessage( 3, 0.5, 0.25, Message, 6,
-			Colour[ 1 ], Colour[ 2 ], Colour[ 3 ], 1, 2, 1 ) )
+		Shine.ScreenText.Add( 3, {
+			X = 0.5, Y = 0.25,
+			Text = Message,
+			Duration = 6,
+			R = Colour[ 1 ], G = Colour[ 2 ], B = Colour[ 3 ],
+			Alignment = 1,
+			Size = 2,
+			FadeIn = 1
+		} )
 		Shine:AdminPrint( nil, "CSay from %s[%s]: %s", true, PlayerName, ID, Message )
 	end
 	local CSayCommand = self:BindCommand( "sh_csay", "csay", CSay )
@@ -1185,6 +1195,26 @@ function Plugin:CreateCommands()
 	local MoveRateCommand = self:BindCommand( "sh_moverate", "moverate", MoveRate )
 	MoveRateCommand:AddParam{ Type = "number", Min = 5, Round = true }
 	MoveRateCommand:Help( "<rate> Sets the move rate and saves it." )
+
+	do
+		local StartVote
+
+		local function CustomVote( Client, VoteQuestion )
+			if not Client then return end
+
+			StartVote = StartVote or Shine.GetUpValue( RegisterVoteType, "StartVote", true )
+			if not StartVote then return end
+
+			StartVote( "ShineCustomVote", Client, { VoteQuestion = VoteQuestion } )
+		end
+		local CustomVoteCommand = self:BindCommand( "sh_customvote", "customvote", CustomVote )
+		CustomVoteCommand:AddParam{ Type = "string", TakeRestOfLine = true }
+		CustomVoteCommand:Help( "<question> Starts a vote with the given question." )
+	end
+end
+
+function Plugin:OnCustomVoteSuccess( Data )
+
 end
 
 function Plugin:IsClientGagged( Client )
@@ -1231,7 +1261,12 @@ function Plugin:ReceiveRequestMapData( Client, Data )
 end
 
 function Plugin:ReceiveRequestPluginData( Client, Data )
-	if not Shine:GetPermission( Client, "sh_loadplugin" ) then return end
+	if not Shine:GetPermission( Client, "sh_loadplugin" )
+	and not Shine:GetPermission( Client, "sh_unloadplugin" ) then
+		return
+	end
+
+	self:SendNetworkMessage( Client, "PluginTabAuthed", {}, true )
 
 	self.PluginClients = self.PluginClients or {}
 

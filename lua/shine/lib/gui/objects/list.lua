@@ -62,7 +62,7 @@ function List:Initialise()
 	if ListData.HeaderSize then
 		self:SetHeaderSize( ListData.HeaderSize )
 	end
-	
+
 	if ListData.LineSize then
 		self:SetLineSize( ListData.LineSize )
 	end
@@ -89,7 +89,7 @@ function List:OnSchemeChange( Scheme )
 	if ListData.HeaderSize then
 		self:SetHeaderSize( ListData.HeaderSize )
 	end
-	
+
 	if ListData.LineSize then
 		self:SetLineSize( ListData.LineSize )
 	end
@@ -133,11 +133,11 @@ function List:SetLineSize( Size )
 
 		self.MaxRows = Floor( ( self.Size.y - self.HeaderSize ) / self.LineSize )
 	end
-	
+
 	local Rows = self.Rows
 
 	if not Rows then return end
-	
+
 	for i = 1, #Rows do
 		local Row = Rows[ i ]
 
@@ -265,18 +265,19 @@ function List:SetSize( Size )
 	self.ScrollPos = Vector( 10, self.HeaderSize, 0 )
 
 	self.MaxRows = Floor( ( Size.y - self.HeaderSize ) / self.LineSize )
-	
+
 	if self.RowCount > self.MaxRows then
 		if self.Scrollbar then
-			self.Scrollbar:SetScrollSize( self.MaxRows / self.RowCount )	
+			self.Scrollbar:SetScrollSize( self.MaxRows / self.RowCount )
 		else
 			self:AddScrollbar()
 		end
-	elseif self.Scrollbar then 
-		self.Scrollbar:SetParent() 
-		self.Scrollbar:Destroy() 
+	elseif self.Scrollbar then
+		self.Scrollbar:SetParent()
+		self.Scrollbar:Destroy()
 
 		self.Scrollbar = nil
+		self.ScrollParent:SetPosition( Vector( 0, 0, 0 ) )
 	end
 
 	if not self.RowSize then
@@ -356,6 +357,10 @@ function List:AddRow( ... )
 		end
 	end
 
+	if self.SortedColumn then
+		self:SortRows( self.SortedColumn, self.SortingFunc, self.Descending )
+	end
+
 	return Row
 end
 
@@ -384,9 +389,7 @@ function List:AddScrollbar()
 		end
 
 		if Smoothed then
-			self:MoveTo( self.ScrollParentPos, 0, 0.3, math.EaseOut, 3, function( List )
-				List.ScrollParent:SetPosition( self.ScrollParentPos )
-			end, self.ScrollParent )
+			self:MoveTo( self.ScrollParent, nil, self.ScrollParentPos, 0, 0.3, nil, math.EaseOut, 3 )
 		else
 			self.ScrollParent:SetPosition( self.ScrollParentPos )
 		end
@@ -409,17 +412,43 @@ function List:Reorder()
 	end
 end
 
+local function UpdateHeaderHighlighting( self, Column, OldSortingColumn )
+	local ColumnHeader = self.Columns[ Column ]
+	if not ColumnHeader then return end
+
+	ColumnHeader.ForceHighlight = true
+	ColumnHeader:SetHighlighted( true, true )
+
+	if OldSortingColumn then
+		local OldHeader = self.Columns[ OldSortingColumn ]
+		if not OldHeader then return end
+
+		OldHeader.ForceHighlight = false
+		OldHeader:SetHighlighted( false )
+	end
+end
+
 --[[
 	Sorts the rows, generally used to sort by column values.
 	Inputs: Column to sort by, optional sorting function.
 ]]
 function List:SortRows( Column, SortFunc, Desc )
+	local OldSortingColumn = self.SortedColumn
 	local Rows = self.Rows
-	if not Rows then return end
+
+	if not Rows then
+		self.SortedColumn = Column
+		self.Descending = Desc
+		self.SortingFunc = SortFunc
+
+		UpdateHeaderHighlighting( self, Column, OldSortingColumn )
+
+		return
+	end
 
 	if Desc == nil then
 		--Only flip the sort order if we're selecting the same column twice.
-		if self.SortedColumn == Column then
+		if OldSortingColumn == Column then
 			self.Descending = not self.Descending
 		else
 			self.Descending = true
@@ -451,6 +480,11 @@ function List:SortRows( Column, SortFunc, Desc )
 	end
 
 	self.SortedColumn = Column
+	self.SortingFunc = SortFunc
+
+	if OldSortingColumn ~= Column then
+		UpdateHeaderHighlighting( self, Column, OldSortingColumn )
+	end
 
 	return self:Reorder()
 end
@@ -466,7 +500,7 @@ function List:RemoveRow( Index )
 	local OldRow = Rows[ Index ]
 
 	if not OldRow then return end
-	
+
 	OldRow:SetParent() --This allows it to run its cleanup function.
 	OldRow:Destroy()
 
@@ -475,12 +509,15 @@ function List:RemoveRow( Index )
 	self.RowCount = self.RowCount - 1
 
 	if self.RowCount <= self.MaxRows then
-		if self.Scrollbar then 
-			self.Scrollbar:SetParent() 
-			self.Scrollbar:Destroy() 
+		if self.Scrollbar then
+			self.Scrollbar:SetParent()
+			self.Scrollbar:Destroy()
 
 			self.Scrollbar = nil
 		end
+
+		--Make sure the scrolling is reset if there's no longer a scrollbar.
+		self.ScrollParent:SetPosition( Vector( 0, 0, 0 ) )
 	else
 		self.Scrollbar:SetScrollSize( self.MaxRows / self.RowCount )
 	end
@@ -518,7 +555,7 @@ end
 
 function List:OnRowSelect( Index, Row )
 	if self.MultiSelect then return end
-	
+
 	if self.SelectedRow and self.SelectedRow ~= Row then
 		self.SelectedRow.Selected = false
 	end
@@ -553,7 +590,7 @@ function List:OnMouseDown( Key, DoubleClick )
 			return true, self.Scrollbar
 		end
 	end
-	
+
 	local Result, Child = self:CallOnChildren( "OnMouseDown", Key, DoubleClick )
 
 	if Result ~= nil then return true, Child end
@@ -586,6 +623,8 @@ function List:OnMouseWheel( Down )
 	if not SGUI.IsValid( self.Scrollbar ) then
 		return
 	end
+
+	self.Scrollbar.MouseWheelScroll = ( self.LineSize or 32 ) * 3
 
 	return self.Scrollbar:OnMouseWheel( Down )
 end
