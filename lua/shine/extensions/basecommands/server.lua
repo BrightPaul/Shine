@@ -40,7 +40,8 @@ Plugin.DefaultConfig = {
 	MoveRate = 30,
 	TickRate = 30,
 	SendRate = 20,
-	BWLimit = Shine.IsNS2Combat and 35 or 25,
+	BWLimit = Shine.IsNS2Combat and 35 or 50,
+	BWLimit279 = Shine.IsNS2Combat,
 	FriendlyFire = false,
 	FriendlyFireScale = 1,
 	FriendlyFirePreGame = true
@@ -174,8 +175,15 @@ function Plugin:Initialise()
 	self.Config.Interp = Max( self.Config.Interp, 0 )
 	self.Config.MoveRate = Max( Floor( self.Config.MoveRate ), 5 )
 	self.Config.TickRate = Max( Floor( self.Config.TickRate ), 5 )
-	self.Config.BWLimit = Max( self.Config.BWLimit, 5 )
 	self.Config.SendRate = Max( Floor( self.Config.SendRate ), 5 )
+	self.Config.BWLimit = Max( self.Config.BWLimit, 5 )
+
+	--Upgrade default limit to 50 kb/s for build 279
+	if self.Config.BWLimit == 25 and not self.Config.BWLimit279 then
+		self.Config.BWLimit = 50
+		self.Config.BWLimit279 = true
+		self:SaveConfig( true )
+	end
 
 	self:CheckRateValues()
 
